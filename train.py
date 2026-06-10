@@ -82,7 +82,7 @@ def main():
     print(f"{'='*60}")
 
     # --- Dataset ---
-    train_transform = get_transforms(image_size, is_train=True)
+    train_transform = get_transforms(image_size, is_train=True, jpeg_aug=True)
     val_transform = get_transforms(image_size, is_train=False)
 
     train_dataset = GenImageDataset(

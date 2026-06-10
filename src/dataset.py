@@ -109,14 +109,34 @@ class GenImageDataset(Dataset):
         return img, self.labels[idx]
 
 
-def get_transforms(image_size: int = 224, is_train: bool = True):
+class RandomJPEGCompression:
+    """Randomly apply JPEG compression during training."""
+    def __init__(self, quality_range=(30, 100), prob=0.5):
+        self.quality_range = quality_range
+        self.prob = prob
+
+    def __call__(self, img):
+        import random, io
+        if random.random() < self.prob:
+            q = random.randint(*self.quality_range)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=q)
+            buf.seek(0)
+            img = Image.open(buf).convert("RGB")
+        return img
+
+
+def get_transforms(image_size: int = 224, is_train: bool = True, jpeg_aug: bool = False):
     if is_train:
-        return transforms.Compose([
-            transforms.Resize((image_size, image_size)),
+        t = [transforms.Resize((image_size, image_size))]
+        if jpeg_aug:
+            t.append(RandomJPEGCompression(quality_range=(30, 95), prob=0.5))
+        t.extend([
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
+        return transforms.Compose(t)
     else:
         return transforms.Compose([
             transforms.Resize((image_size, image_size)),
