@@ -50,9 +50,9 @@ def main():
     parser.add_argument("--data_dir", type=str, default=None)
     parser.add_argument("--train_gen", type=str, default=None)
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--method", type=str, default="freqlora",
-                        choices=["freqlora", "clip_linear", "clip_lora",
-                                 "clip_freq", "freq_only"])
+    parser.add_argument("--method", type=str, default="freqlora_gated",
+                        choices=["freqlora_gated", "freqlora_concat", "clip_linear",
+                                 "clip_lora", "clip_freq"])
     parser.add_argument("--max_train", type=int, default=None,
                         help="Max images per class for training")
     parser.add_argument("--max_test", type=int, default=2000,
@@ -127,14 +127,9 @@ def main():
             clip_model=model_cfg["clip_model"],
             clip_pretrained=model_cfg["clip_pretrained"],
             use_freq=True, use_lora=False,
+            fusion_mode="gated",
         )
-    elif method == "freq_only":
-        model = FreqLoRADetector(
-            clip_model=model_cfg["clip_model"],
-            clip_pretrained=model_cfg["clip_pretrained"],
-            use_freq=True, use_lora=False,
-        )
-    else:  # freqlora
+    elif method == "freqlora_concat":
         model = FreqLoRADetector(
             clip_model=model_cfg["clip_model"],
             clip_pretrained=model_cfg["clip_pretrained"],
@@ -144,6 +139,19 @@ def main():
             freq_dim=model_cfg.get("freq_channels", 256),
             fusion_dim=model_cfg.get("fusion_dim", 256),
             use_freq=True, use_lora=True,
+            fusion_mode="concat",
+        )
+    else:  # freqlora_gated (our method)
+        model = FreqLoRADetector(
+            clip_model=model_cfg["clip_model"],
+            clip_pretrained=model_cfg["clip_pretrained"],
+            lora_rank=model_cfg["lora_rank"],
+            lora_alpha=model_cfg["lora_alpha"],
+            lora_target_modules=model_cfg["lora_target_modules"],
+            freq_dim=model_cfg.get("freq_channels", 256),
+            fusion_dim=model_cfg.get("fusion_dim", 256),
+            use_freq=True, use_lora=True,
+            fusion_mode="gated",
         )
 
     model = model.to(args.device)
