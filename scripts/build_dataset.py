@@ -46,14 +46,14 @@ def collect_real_images(cub_dir: str, output_dir: str, num_train: int = 2000, nu
     val_dir.mkdir(parents=True, exist_ok=True)
 
     for i, img_path in enumerate(tqdm(all_images[:num_train], desc="Copying train real")):
-        dst = train_dir / f"real_{i:05d}.jpg"
+        dst = train_dir / f"real_{i:05d}.png"
         img = Image.open(img_path).convert("RGB").resize((512, 512))
-        img.save(dst, quality=95)
+        img.save(dst)
 
     for i, img_path in enumerate(tqdm(all_images[num_train:num_train+num_val], desc="Copying val real")):
-        dst = val_dir / f"real_{i:05d}.jpg"
+        dst = val_dir / f"real_{i:05d}.png"
         img = Image.open(img_path).convert("RGB").resize((512, 512))
-        img.save(dst, quality=95)
+        img.save(dst)
 
     print(f"Real images: {num_train} train + {num_val} val")
 

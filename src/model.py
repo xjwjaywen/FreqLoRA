@@ -165,7 +165,9 @@ class PatchLTDDetector(nn.Module):
 
 
 class SingleViewLoRA(nn.Module):
-    """Baseline: CLIP + LoRA, no patch transition analysis."""
+    """Baseline: CLIP + LoRA, no patch transition analysis.
+    Uses a larger MLP head to match PatchLTD parameter count for fair comparison.
+    """
 
     def __init__(
         self,
@@ -197,8 +199,12 @@ class SingleViewLoRA(nn.Module):
         self.visual = get_peft_model(self.visual, lora_config)
         self.visual.print_trainable_parameters()
 
+        # Larger MLP to roughly match PatchLTD's total parameter count
         self.classifier = nn.Sequential(
             nn.Linear(self.clip_dim, fusion_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(fusion_dim, fusion_dim),
             nn.ReLU(),
             nn.Dropout(0.3),
             nn.Linear(fusion_dim, 2),
