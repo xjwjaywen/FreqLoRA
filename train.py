@@ -238,11 +238,37 @@ def main():
             mean_auc = np.mean([r['auc'] for r in test_results.values()])
             print(f"\n  {'Mean (unseen generators)':<35} acc={mean_acc:.4f} ap={mean_ap:.4f} auc={mean_auc:.4f}")
 
+    # --- JPEG Robustness Evaluation ---
+    print(f"\n{'='*60}")
+    print("JPEG Robustness Evaluation (trained model, sd21 val)")
+    print(f"{'='*60}")
+
+    jpeg_results = {}
+    for quality in [95, 75, 50, 30]:
+        jpeg_dataset = GenImageDataset(
+            data_dir, train_gen, split="val",
+            transform=val_transform, max_per_class=args.max_test,
+            jpeg_quality=quality,
+        )
+        if len(jpeg_dataset) == 0:
+            continue
+        jpeg_loader = DataLoader(
+            jpeg_dataset, batch_size=train_cfg["batch_size"],
+            shuffle=False, num_workers=4, pin_memory=True,
+        )
+        r = evaluate(model, jpeg_loader, args.device)
+        jpeg_results[quality] = r
+        print(f"  JPEG Q={quality:<3}  acc={r['acc']:.4f} ap={r['ap']:.4f} auc={r['auc']:.4f}")
+
     # Save results
     with open(output_dir / "results.txt", "w") as f:
         f.write(f"method: {method}\ntrain_generator: {train_gen}\nbest_val_acc: {best_acc:.4f}\n\n")
+        f.write("=== Cross-Generator ===\n")
         for gen, r in all_results.items():
             f.write(f"{gen}: acc={r['acc']:.4f} ap={r['ap']:.4f} auc={r['auc']:.4f}\n")
+        f.write("\n=== JPEG Robustness ===\n")
+        for q, r in jpeg_results.items():
+            f.write(f"Q={q}: acc={r['acc']:.4f} ap={r['ap']:.4f} auc={r['auc']:.4f}\n")
 
     print(f"\nResults saved to {output_dir / 'results.txt'}")
 

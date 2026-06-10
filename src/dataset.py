@@ -28,8 +28,10 @@ class GenImageDataset(Dataset):
         split: str = "train",
         transform=None,
         max_per_class: int = None,
+        jpeg_quality: int = None,
     ):
         self.transform = transform
+        self.jpeg_quality = jpeg_quality
         self.images = []
         self.labels = []
 
@@ -96,6 +98,12 @@ class GenImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img = Image.open(self.images[idx]).convert("RGB")
+        if self.jpeg_quality is not None:
+            import io
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=self.jpeg_quality)
+            buf.seek(0)
+            img = Image.open(buf).convert("RGB")
         if self.transform:
             img = self.transform(img)
         return img, self.labels[idx]
