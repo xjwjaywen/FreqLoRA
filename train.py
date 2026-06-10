@@ -1,4 +1,4 @@
-"""Training script for Dual-View CLIP detector."""
+"""Training script for PatchLTD detector."""
 import argparse
 import yaml
 import torch
@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score, average_precision_score, roc_auc_score
 import numpy as np
 
-from src.model import DualViewDetector, SingleViewLoRA, CLIPLinearProbe
+from src.model import PatchLTDDetector, SingleViewLoRA, CLIPLinearProbe
 from src.dataset import GenImageDataset, get_transforms, get_available_generators
 
 
@@ -41,8 +41,8 @@ def main():
     parser.add_argument("--data_dir", type=str, default=None)
     parser.add_argument("--train_gen", type=str, default=None)
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--method", type=str, default="dual_view",
-                        choices=["dual_view", "single_lora", "clip_linear"])
+    parser.add_argument("--method", type=str, default="patchltd",
+                        choices=["patchltd", "single_lora", "clip_linear"])
     parser.add_argument("--max_train", type=int, default=None)
     parser.add_argument("--max_test", type=int, default=2000)
     args = parser.parse_args()
@@ -65,7 +65,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"\n{'='*60}")
-    print(f"Dual-View CLIP | method={method} | train_gen={train_gen}")
+    print(f"PatchLTD | method={method} | train_gen={train_gen}")
     print(f"{'='*60}")
 
     # --- Dataset ---
@@ -93,8 +93,8 @@ def main():
             lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
             lora_target_modules=model_cfg["lora_target_modules"],
         )
-    else:  # dual_view
-        model = DualViewDetector(
+    else:  # patchltd
+        model = PatchLTDDetector(
             model_cfg["clip_model"], model_cfg["clip_pretrained"],
             lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
             lora_target_modules=model_cfg["lora_target_modules"],
@@ -168,8 +168,7 @@ def main():
     if all_results:
         unseen = {k: v for k, v in all_results.items() if k != train_gen}
         if unseen:
-            print(f"\n  {'Mean (unseen)':<35} acc={np.mean([r['acc'] for r in unseen.values()]):.4f} "
-                  f"ap={np.mean([r['ap'] for r in unseen.values()]):.4f}")
+            print(f"\n  {'Mean (unseen)':<35} acc={np.mean([r['acc'] for r in unseen.values()]):.4f}")
 
     # --- JPEG Robustness ---
     print(f"\n{'='*60}")
