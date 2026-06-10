@@ -1,37 +1,21 @@
-"""FreqLoRA model: CLIP-ViT + Frequency Encoder + LoRA with adaptive gating."""
+"""Dual-View CLIP detector: original image + noise residual views."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import open_clip
 from peft import LoraConfig, get_peft_model
+import copy
 
-from .freq_module import FrequencyEncoder
-
-
-class AdaptiveGate(nn.Module):
-    """Learns how much frequency information to incorporate based on spatial features."""
-
-    def __init__(self, spatial_dim: int, freq_dim: int):
-        super().__init__()
-        self.gate = nn.Sequential(
-            nn.Linear(spatial_dim, freq_dim),
-            nn.ReLU(),
-            nn.Linear(freq_dim, freq_dim),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, spatial: torch.Tensor, freq: torch.Tensor) -> torch.Tensor:
-        g = self.gate(spatial)
-        return spatial_dim_pad(spatial) + g * freq if False else torch.cat([spatial, g * freq], dim=-1)
+from .freq_module import SRMConv
 
 
-class FreqLoRADetector(nn.Module):
+class DualViewDetector(nn.Module):
     """
-    AI-generated image detector with frequency-guided LoRA adaptation.
+    Dual-View CLIP detector (our method).
 
-    Fusion modes:
-      - "concat": [spatial; freq] (naive, baseline)
-      - "gated":  [spatial; gate(spatial) * freq] (our method - AFSG)
+    View 1: Original image -> CLIP + LoRA-A -> semantic features
+    View 2: SRM noise residual -> CLIP + LoRA-B -> forensic features
+    Fusion: [semantic; forensic] -> MLP -> Real/Fake
     """
 
     def __init__(
@@ -41,18 +25,100 @@ class FreqLoRADetector(nn.Module):
         lora_rank: int = 8,
         lora_alpha: int = 8,
         lora_target_modules: list = None,
-        freq_dim: int = 256,
         fusion_dim: int = 256,
-        use_freq: bool = True,
-        use_lora: bool = True,
-        fusion_mode: str = "gated",  # "concat" or "gated"
     ):
         super().__init__()
-        self.use_freq = use_freq
-        self.use_lora = use_lora
-        self.fusion_mode = fusion_mode
+        if lora_target_modules is None:
+            lora_target_modules = ["out_proj", "c_fc", "c_proj"]
 
-        # CLIP visual encoder
+        # Load CLIP once, then clone for two views
+        clip, _, self.preprocess = open_clip.create_model_and_transforms(
+            clip_model, pretrained=clip_pretrained
+        )
+        clip_dim = clip.visual.output_dim
+        self.clip_dim = clip_dim
+
+        # View 1: semantic (original image)
+        self.visual_semantic = clip.visual
+        for param in self.visual_semantic.parameters():
+            param.requires_grad = False
+        lora_config_a = LoraConfig(
+            r=lora_rank, lora_alpha=lora_alpha,
+            target_modules=lora_target_modules, lora_dropout=0.05,
+        )
+        self.visual_semantic = get_peft_model(self.visual_semantic, lora_config_a)
+        print("Semantic view:")
+        self.visual_semantic.print_trainable_parameters()
+
+        # View 2: forensic (noise residual)
+        self.visual_forensic = copy.deepcopy(clip.visual)
+        for param in self.visual_forensic.parameters():
+            param.requires_grad = False
+        lora_config_b = LoraConfig(
+            r=lora_rank, lora_alpha=lora_alpha,
+            target_modules=lora_target_modules, lora_dropout=0.05,
+        )
+        self.visual_forensic = get_peft_model(self.visual_forensic, lora_config_b)
+        print("Forensic view:")
+        self.visual_forensic.print_trainable_parameters()
+
+        del clip
+
+        # SRM noise extraction -> convert to 3-channel residual image
+        self.srm = SRMConv(num_filters=9)
+        self.residual_proj = nn.Conv2d(9, 3, kernel_size=1)
+
+        # Fusion classifier
+        self.classifier = nn.Sequential(
+            nn.Linear(clip_dim * 2, fusion_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(fusion_dim, 2),
+        )
+
+    def _extract_residual(self, x: torch.Tensor) -> torch.Tensor:
+        """Extract noise residual and convert to 3-channel image."""
+        srm_out = self.srm(x)  # (B, 9, H, W)
+        residual = self.residual_proj(srm_out)  # (B, 3, H, W)
+        # Normalize to similar range as original image
+        residual = torch.tanh(residual)
+        return residual
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # View 1: semantic features from original image
+        feat_semantic = self.visual_semantic(x)
+        if isinstance(feat_semantic, tuple):
+            feat_semantic = feat_semantic[0]
+        feat_semantic = F.normalize(feat_semantic, dim=-1)
+
+        # View 2: forensic features from noise residual
+        residual = self._extract_residual(x)
+        feat_forensic = self.visual_forensic(residual)
+        if isinstance(feat_forensic, tuple):
+            feat_forensic = feat_forensic[0]
+        feat_forensic = F.normalize(feat_forensic, dim=-1)
+
+        # Fusion
+        features = torch.cat([feat_semantic, feat_forensic], dim=-1)
+        return self.classifier(features)
+
+
+class SingleViewLoRA(nn.Module):
+    """Baseline: single CLIP + LoRA (no dual view)."""
+
+    def __init__(
+        self,
+        clip_model: str = "ViT-B-16",
+        clip_pretrained: str = "laion2b_s34b_b88k",
+        lora_rank: int = 8,
+        lora_alpha: int = 8,
+        lora_target_modules: list = None,
+        fusion_dim: int = 256,
+    ):
+        super().__init__()
+        if lora_target_modules is None:
+            lora_target_modules = ["out_proj", "c_fc", "c_proj"]
+
         clip, _, self.preprocess = open_clip.create_model_and_transforms(
             clip_model, pretrained=clip_pretrained
         )
@@ -63,55 +129,26 @@ class FreqLoRADetector(nn.Module):
         for param in self.visual.parameters():
             param.requires_grad = False
 
-        if use_lora:
-            if lora_target_modules is None:
-                lora_target_modules = ["out_proj", "c_fc", "c_proj"]
-            lora_config = LoraConfig(
-                r=lora_rank,
-                lora_alpha=lora_alpha,
-                target_modules=lora_target_modules,
-                lora_dropout=0.05,
-            )
-            self.visual = get_peft_model(self.visual, lora_config)
-            self.visual.print_trainable_parameters()
-
-        if use_freq:
-            self.freq_encoder = FrequencyEncoder(out_dim=freq_dim)
-            if fusion_mode == "gated":
-                self.gate = nn.Sequential(
-                    nn.Linear(self.clip_dim, freq_dim),
-                    nn.ReLU(),
-                    nn.Linear(freq_dim, freq_dim),
-                    nn.Sigmoid(),
-                )
-            total_dim = self.clip_dim + freq_dim
-        else:
-            self.freq_encoder = None
-            total_dim = self.clip_dim
+        lora_config = LoraConfig(
+            r=lora_rank, lora_alpha=lora_alpha,
+            target_modules=lora_target_modules, lora_dropout=0.05,
+        )
+        self.visual = get_peft_model(self.visual, lora_config)
+        self.visual.print_trainable_parameters()
 
         self.classifier = nn.Sequential(
-            nn.Linear(total_dim, fusion_dim),
+            nn.Linear(self.clip_dim, fusion_dim),
             nn.ReLU(),
             nn.Dropout(0.3),
             nn.Linear(fusion_dim, 2),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        spatial = self.visual(x)
-        if isinstance(spatial, tuple):
-            spatial = spatial[0]
-        spatial = F.normalize(spatial, dim=-1)
-
-        if self.use_freq and self.freq_encoder is not None:
-            freq = self.freq_encoder(x)
-            if self.fusion_mode == "gated":
-                g = self.gate(spatial.detach())  # detach: gate doesn't affect CLIP gradients
-                freq = g * freq
-            features = torch.cat([spatial, freq], dim=-1)
-        else:
-            features = spatial
-
-        return self.classifier(features)
+        feat = self.visual(x)
+        if isinstance(feat, tuple):
+            feat = feat[0]
+        feat = F.normalize(feat, dim=-1)
+        return self.classifier(feat)
 
 
 class CLIPLinearProbe(nn.Module):
