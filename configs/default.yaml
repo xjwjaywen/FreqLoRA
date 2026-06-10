@@ -1,0 +1,28 @@
+model:
+  clip_model: "ViT-B-16"
+  clip_pretrained: "laion2b_s34b_b88k"
+  lora_rank: 8
+  lora_alpha: 8
+  lora_target_modules: ["q_proj", "v_proj"]
+  freq_channels: 64
+  fusion_dim: 256
+
+training:
+  epochs: 10
+  batch_size: 32
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  warmup_steps: 500
+  seed: 42
+
+dataset:
+  data_dir: "./data/GenImage"
+  train_generator: "stable_diffusion_v_1_4"
+  image_size: 224
+
+evaluation:
+  test_generators: null  # test on all available generators
+
+output:
+  output_dir: "./outputs"
+  save_best: true
