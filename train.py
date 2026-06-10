@@ -119,6 +119,7 @@ def main():
             clip_pretrained=model_cfg["clip_pretrained"],
             lora_rank=model_cfg["lora_rank"],
             lora_alpha=model_cfg["lora_alpha"],
+            lora_target_modules=model_cfg["lora_target_modules"],
             use_freq=False, use_lora=True,
         )
     elif method == "clip_freq":
