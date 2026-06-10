@@ -109,14 +109,20 @@ class PatchLTDDetector(nn.Module):
             self.intermediate_features[layer_idx] = output
         return hook
 
-    def _compute_patch_transitions(self) -> torch.Tensor:
+    def _compute_patch_transitions(self, batch_size: int) -> torch.Tensor:
         """Compute patch-level layer transition discrepancies."""
         layer_patches = []
         for idx in self.selected_layers:
             feat = self.intermediate_features[idx]
-            # open_clip uses (seq_len, batch, dim) format
-            if feat.dim() == 3 and feat.shape[0] != feat.shape[1]:
-                feat = feat.permute(1, 0, 2)  # -> (batch, seq_len, dim)
+            # Ensure (batch, seq_len, dim) format
+            if feat.dim() == 3:
+                # open_clip may use (seq_len, batch, dim) or (batch, seq_len, dim)
+                if feat.shape[0] == batch_size:
+                    pass  # already (batch, seq_len, dim)
+                elif feat.shape[1] == batch_size:
+                    feat = feat.permute(1, 0, 2)
+                else:
+                    feat = feat.permute(1, 0, 2)  # default assumption
             patches = feat[:, 1:, :]  # exclude CLS token: (B, num_patches, dim)
             layer_patches.append(patches)
 
@@ -141,7 +147,8 @@ class PatchLTDDetector(nn.Module):
         cls_feat = F.normalize(cls_feat, dim=-1)
 
         # Compute patch-level transitions
-        transitions = self._compute_patch_transitions()  # (B, N_trans*N_patches, proj_dim)
+        B = x.shape[0]
+        transitions = self._compute_patch_transitions(B)  # (B, N_trans*N_patches, proj_dim)
 
         # Prepend learnable CLS token for aggregation
         B = transitions.shape[0]
