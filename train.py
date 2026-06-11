@@ -42,7 +42,8 @@ def main():
     parser.add_argument("--train_gen", type=str, default=None)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--method", type=str, default="patchltd",
-                        choices=["patchltd", "single_lora", "clip_linear"])
+                        choices=["patchltd", "patchltd_meanpool", "cls_ltd",
+                                 "single_lora", "clip_linear"])
     parser.add_argument("--max_train", type=int, default=None)
     parser.add_argument("--max_test", type=int, default=2000)
     args = parser.parse_args()
@@ -93,11 +94,26 @@ def main():
             lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
             lora_target_modules=model_cfg["lora_target_modules"],
         )
+    elif method == "patchltd_meanpool":
+        model = PatchLTDDetector(
+            model_cfg["clip_model"], model_cfg["clip_pretrained"],
+            lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
+            lora_target_modules=model_cfg["lora_target_modules"],
+            patch_mode="meanpool",
+        )
+    elif method == "cls_ltd":
+        model = PatchLTDDetector(
+            model_cfg["clip_model"], model_cfg["clip_pretrained"],
+            lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
+            lora_target_modules=model_cfg["lora_target_modules"],
+            patch_mode="cls_only",
+        )
     else:  # patchltd
         model = PatchLTDDetector(
             model_cfg["clip_model"], model_cfg["clip_pretrained"],
             lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
             lora_target_modules=model_cfg["lora_target_modules"],
+            patch_mode="transformer",
         )
 
     model = model.to(args.device)

@@ -37,6 +37,7 @@ class PatchLTDDetector(nn.Module):
         selected_layers: list = None,
         transition_proj_dim: int = 128,
         fusion_dim: int = 256,
+        patch_mode: str = "transformer",  # "transformer", "meanpool", "cls_only"
     ):
         super().__init__()
         if lora_target_modules is None:
@@ -46,6 +47,7 @@ class PatchLTDDetector(nn.Module):
 
         self.selected_layers = selected_layers
         self.num_transitions = len(selected_layers) - 1
+        self.patch_mode = patch_mode
 
         # Load CLIP
         clip, _, self.preprocess = open_clip.create_model_and_transforms(
@@ -109,33 +111,45 @@ class PatchLTDDetector(nn.Module):
             self.intermediate_features[layer_idx] = output
         return hook
 
-    def _compute_patch_transitions(self, batch_size: int) -> torch.Tensor:
-        """Compute patch-level layer transition discrepancies."""
-        layer_patches = []
+    def _get_layer_tokens(self, batch_size: int):
+        """Extract tokens from hooked layers in (batch, seq, dim) format."""
+        layer_tokens = []
         for idx in self.selected_layers:
             feat = self.intermediate_features[idx]
-            # Ensure (batch, seq_len, dim) format
             if feat.dim() == 3:
-                # open_clip may use (seq_len, batch, dim) or (batch, seq_len, dim)
                 if feat.shape[0] == batch_size:
-                    pass  # already (batch, seq_len, dim)
+                    pass
                 elif feat.shape[1] == batch_size:
                     feat = feat.permute(1, 0, 2)
                 else:
-                    feat = feat.permute(1, 0, 2)  # default assumption
-            patches = feat[:, 1:, :]  # exclude CLS token: (B, num_patches, dim)
-            layer_patches.append(patches)
+                    feat = feat.permute(1, 0, 2)
+            layer_tokens.append(feat)
+        return layer_tokens
 
-        # Compute transitions between adjacent selected layers
-        transitions = []
-        for k in range(self.num_transitions):
-            d = layer_patches[k + 1] - layer_patches[k]  # (B, num_patches, dim)
-            d_proj = self.transition_proj(d)  # (B, num_patches, proj_dim)
-            transitions.append(d_proj)
+    def _compute_transitions(self, batch_size: int) -> torch.Tensor:
+        """Compute layer transition features based on patch_mode."""
+        layer_tokens = self._get_layer_tokens(batch_size)
 
-        # Stack all transitions: (B, num_transitions * num_patches, proj_dim)
-        all_transitions = torch.cat(transitions, dim=1)
-        return all_transitions
+        if self.patch_mode == "cls_only":
+            # LTD-style: only use CLS token (index 0)
+            cls_tokens = [t[:, 0, :] for t in layer_tokens]  # list of (B, dim)
+            transitions = []
+            for k in range(self.num_transitions):
+                d = cls_tokens[k + 1] - cls_tokens[k]  # (B, dim)
+                d_proj = self.transition_proj(d)  # (B, proj_dim)
+                transitions.append(d_proj)
+            # (B, num_transitions, proj_dim)
+            return torch.stack(transitions, dim=1)
+        else:
+            # Patch-level: use all patch tokens (exclude CLS)
+            layer_patches = [t[:, 1:, :] for t in layer_tokens]
+            transitions = []
+            for k in range(self.num_transitions):
+                d = layer_patches[k + 1] - layer_patches[k]  # (B, num_patches, dim)
+                d_proj = self.transition_proj(d)  # (B, num_patches, proj_dim)
+                transitions.append(d_proj)
+            # (B, num_transitions * num_patches, proj_dim)
+            return torch.cat(transitions, dim=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         self.intermediate_features.clear()
@@ -146,18 +160,20 @@ class PatchLTDDetector(nn.Module):
             cls_feat = cls_feat[0]
         cls_feat = F.normalize(cls_feat, dim=-1)
 
-        # Compute patch-level transitions
+        # Compute transitions
         B = x.shape[0]
-        transitions = self._compute_patch_transitions(B)  # (B, N_trans*N_patches, proj_dim)
+        transitions = self._compute_transitions(B)
 
-        # Prepend learnable CLS token for aggregation
-        B = transitions.shape[0]
-        cls_token = self.transition_cls.expand(B, -1, -1)
-        tokens = torch.cat([cls_token, transitions], dim=1)
-
-        # Aggregate via Transformer
-        aggregated = self.transition_aggregator(tokens)
-        transition_feat = aggregated[:, 0, :]  # take CLS output: (B, proj_dim)
+        # Aggregate based on mode
+        if self.patch_mode == "meanpool":
+            transition_feat = transitions.mean(dim=1)  # (B, proj_dim)
+        elif self.patch_mode == "cls_only":
+            transition_feat = transitions.mean(dim=1)  # (B, proj_dim) - mean of CLS transitions
+        else:  # "transformer"
+            cls_token = self.transition_cls.expand(B, -1, -1)
+            tokens = torch.cat([cls_token, transitions], dim=1)
+            aggregated = self.transition_aggregator(tokens)
+            transition_feat = aggregated[:, 0, :]  # (B, proj_dim)
 
         # Fuse CLS + transition features
         features = torch.cat([cls_feat, transition_feat], dim=-1)
