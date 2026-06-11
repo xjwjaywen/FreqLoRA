@@ -225,9 +225,10 @@ def main():
     print("JPEG Robustness Evaluation")
     print(f"{'='*60}")
 
-    # Use first generator for JPEG test (in case of multi-gen training)
+    # JPEG test on training generator
     jpeg_test_gen = train_gen.split("+")[0] if "+" in train_gen else train_gen
     jpeg_results = {}
+    print(f"  [On {jpeg_test_gen} (train)]")
     for q in [95, 75, 50, 30]:
         ds = GenImageDataset(data_dir, jpeg_test_gen, split="val",
                               transform=val_transform, max_per_class=args.max_test, jpeg_quality=q)
@@ -238,6 +239,28 @@ def main():
         r = evaluate(model, loader, args.device)
         jpeg_results[q] = r
         print(f"  JPEG Q={q:<3}  acc={r['acc']:.4f} ap={r['ap']:.4f} auc={r['auc']:.4f}")
+
+    # JPEG test on unseen generators
+    jpeg_unseen_results = {}
+    unseen_jpeg_gens = ["glide", "vqdm", "wukong"]
+    for gen in unseen_jpeg_gens:
+        if gen in [g.strip() for g in train_gen.split("+")]:
+            continue
+        gen_results = {}
+        has_data = False
+        for q in [95, 50, 30]:
+            ds = GenImageDataset(data_dir, gen, split="val",
+                                  transform=val_transform, max_per_class=args.max_test, jpeg_quality=q)
+            if len(ds) == 0:
+                continue
+            has_data = True
+            loader = DataLoader(ds, batch_size=train_cfg["batch_size"],
+                                 shuffle=False, num_workers=4, pin_memory=True)
+            r = evaluate(model, loader, args.device)
+            gen_results[q] = r
+        if has_data:
+            jpeg_unseen_results[gen] = gen_results
+            print(f"  [{gen} (unseen)] Q=95:{gen_results.get(95,{}).get('acc',0):.4f} Q=50:{gen_results.get(50,{}).get('acc',0):.4f} Q=30:{gen_results.get(30,{}).get('acc',0):.4f}")
 
     # --- Save ---
     with open(output_dir / "results.txt", "w") as f:
