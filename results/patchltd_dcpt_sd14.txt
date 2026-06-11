@@ -1,0 +1,17 @@
+method: patchltd_dcpt
+train_generator: sd14
+best_val_acc: 0.9627
+
+=== Cross-Generator ===
+adm: acc=0.4988 ap=0.3980 auc=0.3374
+biggan: acc=0.5020 ap=0.4475 auc=0.4211
+sd14: acc=0.9627 ap=0.9957 auc=0.9955
+sd15: acc=0.9330 ap=0.9928 auc=0.9929
+sd21: acc=0.9510 ap=0.9949 auc=0.9949
+vqdm: acc=0.5175 ap=0.5490 auc=0.5080
+
+=== JPEG Robustness ===
+Q=95: acc=0.9633 ap=0.9954 auc=0.9952
+Q=75: acc=0.9280 ap=0.9917 auc=0.9914
+Q=50: acc=0.8702 ap=0.9815 auc=0.9797
+Q=30: acc=0.8315 ap=0.9721 auc=0.9691

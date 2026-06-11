@@ -1,0 +1,13 @@
+method: freqlora
+train_generator: sd21
+best_val_acc: 1.0000
+
+=== Cross-Generator ===
+sd15: acc=0.9830 ap=0.9989 auc=0.9987
+sd21: acc=1.0000 ap=1.0000 auc=1.0000
+
+=== JPEG Robustness ===
+Q=95: acc=0.9840 ap=0.9994 auc=0.9993
+Q=75: acc=0.9620 ap=0.9986 auc=0.9983
+Q=50: acc=0.9520 ap=0.9981 auc=0.9976
+Q=30: acc=0.9260 ap=0.9974 auc=0.9967

@@ -1,0 +1,5 @@
+method: clip_freq
+train_generator: sd21
+best_val_acc: 0.9810
+
+sd21: acc=0.9810 ap=0.9985 auc=0.9985

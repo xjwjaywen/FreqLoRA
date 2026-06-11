@@ -1,0 +1,17 @@
+method: cls_ltd
+train_generator: sd14
+best_val_acc: 0.9918
+
+=== Cross-Generator ===
+adm: acc=0.5088 ap=0.5531 auc=0.5460
+biggan: acc=0.4948 ap=0.4716 auc=0.5125
+sd14: acc=0.9918 ap=0.9996 auc=0.9995
+sd15: acc=0.9760 ap=0.9972 auc=0.9973
+sd21: acc=0.9680 ap=0.9952 auc=0.9952
+vqdm: acc=0.5437 ap=0.6458 auc=0.6055
+
+=== JPEG Robustness ===
+Q=95: acc=0.9840 ap=0.9985 auc=0.9982
+Q=75: acc=0.9297 ap=0.9899 auc=0.9881
+Q=50: acc=0.8458 ap=0.9722 auc=0.9674
+Q=30: acc=0.8050 ap=0.9580 auc=0.9509

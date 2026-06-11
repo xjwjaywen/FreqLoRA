@@ -1,0 +1,14 @@
+method: single_lora
+train_generator: sd21
+best_val_acc: 0.9960
+
+=== Cross-Generator ===
+biggan: acc=0.4868 ap=0.3536 auc=0.2351
+sd15: acc=0.9690 ap=0.9972 auc=0.9960
+sd21: acc=0.9960 ap=0.9998 auc=0.9997
+
+=== JPEG Robustness ===
+Q=95: acc=0.9920 ap=0.9998 auc=0.9998
+Q=75: acc=0.9630 ap=0.9989 auc=0.9987
+Q=50: acc=0.9610 ap=0.9989 auc=0.9987
+Q=30: acc=0.9460 ap=0.9988 auc=0.9984

@@ -1,0 +1,5 @@
+method: clip_linear
+train_generator: sd21
+best_val_acc: 0.9780
+
+sd21: acc=0.9780 ap=0.9993 auc=0.9993

@@ -1,0 +1,20 @@
+method: patchltd
+train_generator: sd14+biggan+adm
+best_val_acc: 0.9775
+
+=== Cross-Generator ===
+adm: acc=0.9882 ap=0.9998 auc=0.9998
+biggan: acc=0.9890 ap=0.9997 auc=0.9997
+glide: acc=0.9603 ap=0.9940 auc=0.9937
+sd14: acc=0.9775 ap=0.9976 auc=0.9976
+sd15: acc=0.9410 ap=0.9875 auc=0.9893
+sd21: acc=0.9670 ap=0.9923 auc=0.9930
+sdv5: acc=0.9810 ap=0.9975 auc=0.9975
+vqdm: acc=0.6633 ap=0.8047 auc=0.7653
+wukong: acc=0.9620 ap=0.9942 auc=0.9936
+
+=== JPEG Robustness ===
+Q=95: acc=0.9690 ap=0.9958 auc=0.9957
+Q=75: acc=0.9210 ap=0.9865 auc=0.9849
+Q=50: acc=0.8682 ap=0.9783 auc=0.9760
+Q=30: acc=0.8320 ap=0.9691 auc=0.9654

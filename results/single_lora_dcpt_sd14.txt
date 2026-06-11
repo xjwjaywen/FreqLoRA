@@ -1,0 +1,17 @@
+method: single_lora_dcpt
+train_generator: sd14
+best_val_acc: 0.9778
+
+=== Cross-Generator ===
+adm: acc=0.4938 ap=0.3810 auc=0.2993
+biggan: acc=0.5122 ap=0.4960 auc=0.4656
+sd14: acc=0.9778 ap=0.9980 auc=0.9979
+sd15: acc=0.9790 ap=0.9962 auc=0.9966
+sd21: acc=0.9780 ap=0.9959 auc=0.9959
+vqdm: acc=0.5633 ap=0.6254 auc=0.5761
+
+=== JPEG Robustness ===
+Q=95: acc=0.9742 ap=0.9971 auc=0.9969
+Q=75: acc=0.9485 ap=0.9927 auc=0.9924
+Q=50: acc=0.9040 ap=0.9838 auc=0.9819
+Q=30: acc=0.8880 ap=0.9782 auc=0.9752

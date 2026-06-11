@@ -1,0 +1,17 @@
+method: patchltd_meanpool
+train_generator: sd14
+best_val_acc: 0.9878
+
+=== Cross-Generator ===
+adm: acc=0.5048 ap=0.4474 auc=0.4119
+biggan: acc=0.4955 ap=0.3580 auc=0.2425
+sd14: acc=0.9878 ap=0.9987 auc=0.9982
+sd15: acc=0.9650 ap=0.9923 auc=0.9933
+sd21: acc=0.9650 ap=0.9931 auc=0.9940
+vqdm: acc=0.5457 ap=0.5956 auc=0.5464
+
+=== JPEG Robustness ===
+Q=95: acc=0.9858 ap=0.9986 auc=0.9981
+Q=75: acc=0.9778 ap=0.9970 auc=0.9962
+Q=50: acc=0.9455 ap=0.9929 auc=0.9915
+Q=30: acc=0.9165 ap=0.9879 auc=0.9858
