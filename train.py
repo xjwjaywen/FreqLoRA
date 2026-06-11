@@ -268,9 +268,14 @@ def main():
         f.write("=== Cross-Generator ===\n")
         for gen, r in all_results.items():
             f.write(f"{gen}: acc={r['acc']:.4f} ap={r['ap']:.4f} auc={r['auc']:.4f}\n")
-        f.write("\n=== JPEG Robustness ===\n")
+        f.write("\n=== JPEG Robustness (train gen) ===\n")
         for q, r in jpeg_results.items():
             f.write(f"Q={q}: acc={r['acc']:.4f} ap={r['ap']:.4f} auc={r['auc']:.4f}\n")
+        if jpeg_unseen_results:
+            f.write("\n=== JPEG Robustness (unseen generators) ===\n")
+            for gen, gen_r in jpeg_unseen_results.items():
+                for q, r in gen_r.items():
+                    f.write(f"{gen}_Q={q}: acc={r['acc']:.4f} ap={r['ap']:.4f} auc={r['auc']:.4f}\n")
 
     print(f"\nResults saved to {output_dir / 'results.txt'}")
 
