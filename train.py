@@ -50,6 +50,7 @@ def main():
     parser.add_argument("--max_test", type=int, default=2000)
     parser.add_argument("--multi_gen", type=str, default=None,
                         help="Comma-separated generators for multi-gen training, e.g. 'sd14,biggan,adm'")
+    parser.add_argument("--seed", type=int, default=None, help="Override random seed")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -65,6 +66,12 @@ def main():
     image_size = config["dataset"]["image_size"]
     model_cfg = config["model"]
     train_cfg = config["training"]
+
+    # Set seed
+    seed = args.seed if args.seed is not None else train_cfg["seed"]
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
 
     output_dir = Path(config["output"]["output_dir"]) / f"{method}_{train_gen}"
     output_dir.mkdir(parents=True, exist_ok=True)
