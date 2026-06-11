@@ -11,6 +11,7 @@ import numpy as np
 
 from src.model import PatchLTDDetector, SingleViewLoRA, CLIPLinearProbe
 from src.dataset import GenImageDataset, get_transforms, get_available_generators
+from src.dcpt import apply_random_degradation, dcpt_consistency_loss
 
 
 def evaluate(model, dataloader, device):
@@ -42,8 +43,9 @@ def main():
     parser.add_argument("--train_gen", type=str, default=None)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--method", type=str, default="patchltd",
-                        choices=["patchltd", "patchltd_meanpool", "cls_ltd",
-                                 "single_lora", "clip_linear"])
+                        choices=["patchltd", "patchltd_dcpt", "patchltd_meanpool",
+                                 "cls_ltd", "single_lora", "single_lora_dcpt",
+                                 "clip_linear"])
     parser.add_argument("--max_train", type=int, default=None)
     parser.add_argument("--max_test", type=int, default=2000)
     args = parser.parse_args()
@@ -88,7 +90,7 @@ def main():
     # --- Model ---
     if method == "clip_linear":
         model = CLIPLinearProbe(model_cfg["clip_model"], model_cfg["clip_pretrained"])
-    elif method == "single_lora":
+    elif method in ("single_lora", "single_lora_dcpt"):
         model = SingleViewLoRA(
             model_cfg["clip_model"], model_cfg["clip_pretrained"],
             lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
@@ -108,7 +110,7 @@ def main():
             lora_target_modules=model_cfg["lora_target_modules"],
             patch_mode="cls_only",
         )
-    else:  # patchltd
+    else:  # patchltd or patchltd_dcpt
         model = PatchLTDDetector(
             model_cfg["clip_model"], model_cfg["clip_pretrained"],
             lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
@@ -127,6 +129,12 @@ def main():
                                    weight_decay=train_cfg["weight_decay"])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=train_cfg["epochs"])
 
+    use_dcpt = method.endswith("_dcpt")
+    lambda_feat = 0.5
+    lambda_pred = 0.5
+    if use_dcpt:
+        print(f"DCPT enabled: lambda_feat={lambda_feat}, lambda_pred={lambda_pred}")
+
     best_acc = 0.0
     for epoch in range(train_cfg["epochs"]):
         model.train()
@@ -137,6 +145,13 @@ def main():
             images, labels = images.to(args.device), labels.to(args.device)
             logits = model(images)
             loss = criterion(logits, labels)
+
+            # DCPT: degradation-consistent paired training
+            if use_dcpt:
+                degraded = apply_random_degradation(images)
+                logits_deg = model(degraded)
+                dcpt_loss = dcpt_consistency_loss(logits, logits_deg, lambda_feat, lambda_pred)
+                loss = loss + dcpt_loss
 
             optimizer.zero_grad()
             loss.backward()
