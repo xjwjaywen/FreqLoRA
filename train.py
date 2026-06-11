@@ -225,9 +225,11 @@ def main():
     print("JPEG Robustness Evaluation")
     print(f"{'='*60}")
 
+    # Use first generator for JPEG test (in case of multi-gen training)
+    jpeg_test_gen = train_gen.split("+")[0] if "+" in train_gen else train_gen
     jpeg_results = {}
     for q in [95, 75, 50, 30]:
-        ds = GenImageDataset(data_dir, train_gen, split="val",
+        ds = GenImageDataset(data_dir, jpeg_test_gen, split="val",
                               transform=val_transform, max_per_class=args.max_test, jpeg_quality=q)
         if len(ds) == 0:
             continue
