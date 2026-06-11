@@ -97,7 +97,13 @@ class GenImageDataset(Dataset):
         return len(self.images)
 
     def __getitem__(self, idx):
-        img = Image.open(self.images[idx]).convert("RGB")
+        try:
+            img = Image.open(self.images[idx]).convert("RGB")
+        except Exception:
+            # Corrupted image: return a random valid image instead
+            fallback_idx = (idx + 1) % len(self.images)
+            img = Image.open(self.images[fallback_idx]).convert("RGB")
+            self.labels[idx] = self.labels[fallback_idx]
         if self.jpeg_quality is not None:
             import io
             buf = io.BytesIO()
