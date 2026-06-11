@@ -48,6 +48,8 @@ def main():
                                  "clip_linear"])
     parser.add_argument("--max_train", type=int, default=None)
     parser.add_argument("--max_test", type=int, default=2000)
+    parser.add_argument("--multi_gen", type=str, default=None,
+                        help="Comma-separated generators for multi-gen training, e.g. 'sd14,biggan,adm'")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -75,10 +77,27 @@ def main():
     train_transform = get_transforms(image_size, is_train=True, jpeg_aug=True)
     val_transform = get_transforms(image_size, is_train=False)
 
-    train_dataset = GenImageDataset(data_dir, train_gen, split="train",
-                                     transform=train_transform, max_per_class=args.max_train)
-    val_dataset = GenImageDataset(data_dir, train_gen, split="val",
-                                   transform=val_transform, max_per_class=args.max_test)
+    if args.multi_gen:
+        # Multi-generator training: combine multiple generators
+        from torch.utils.data import ConcatDataset
+        train_gens = [g.strip() for g in args.multi_gen.split(",")]
+        train_datasets = []
+        for gen in train_gens:
+            ds = GenImageDataset(data_dir, gen, split="train",
+                                  transform=train_transform, max_per_class=args.max_train)
+            if len(ds) > 0:
+                train_datasets.append(ds)
+        train_dataset = ConcatDataset(train_datasets)
+        train_gen = "+".join(train_gens)
+        output_dir = Path(config["output"]["output_dir"]) / f"{method}_{train_gen}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Multi-gen training: {train_gen}, total {len(train_dataset)} images")
+    else:
+        train_dataset = GenImageDataset(data_dir, train_gen, split="train",
+                                         transform=train_transform, max_per_class=args.max_train)
+
+    val_dataset = GenImageDataset(data_dir, train_gen.split("+")[0] if "+" in train_gen else train_gen,
+                                   split="val", transform=val_transform, max_per_class=args.max_test)
     if len(train_dataset) == 0:
         print("ERROR: No training data"); return
 
