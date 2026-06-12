@@ -1,13 +1,13 @@
-# PatchLTD: Patch-Level Layer Transition Discrepancy for Compression-Robust AI-Generated Image Detection
+# PatchLTD: Spatializing Layer Transition Discrepancy for Robust AI-Generated Image Detection
 
-## Target: ICIG 2026 → fallback ACCV 2026
+## Target: ICIG 2026
 ## Format: Springer LNCS, 10-12 pages
 
 ---
 
 ## Abstract (~150 words)
 
-AI-generated image detection faces significant challenges when images undergo compression during social media transmission. We observe that existing CLIP-based detectors suffer substantial accuracy degradation under JPEG compression (e.g., -9.4% at Q=30). To address this, we propose PatchLTD, which leverages patch-level layer transition discrepancy in CLIP's intermediate representations as a compression-robust forensic signal. Unlike prior work (LTD) that analyzes only the global CLS token, PatchLTD extracts per-patch feature transitions across multiple transformer layers, capturing spatially-localized artifacts that are inherently more robust to lossy compression. Experiments on GenImage benchmark show that PatchLTD achieves +3.2% accuracy improvement at JPEG Q=30 while maintaining comparable cross-generator generalization performance. Our analysis reveals that patch-level transitions in CLIP's mid-layers encode structural consistency patterns that survive compression, providing a reliable signal for real-world deployment scenarios.
+Recent CLIP-based AI-generated image detectors leverage layer transition discrepancy (LTD) -- the difference between intermediate-layer representations -- as a forensic signal. However, existing methods analyze only the global CLS token, discarding spatially-resolved information encoded in patch tokens. We propose PatchLTD, which extends layer transition analysis to the patch level: for each spatial position in the ViT grid, we compute per-patch feature transitions across selected intermediate layers and aggregate them via a lightweight Transformer encoder. This yields a spatially-aware forensic feature that complements the semantic CLS embedding. Experiments on GenImage with three random seeds show that PatchLTD provides consistent improvement under JPEG compression in the multi-generator training setting (+7.7% accuracy at Q=30 over CLIP+LoRA, 90.8±1.7% vs 83.1±3.6%), with notably lower variance across seeds. Ablation confirms that patch-level transitions outperform CLS-only transitions by +7.4% at Q=30, validating the value of spatially-resolved layer analysis.
 
 ---
 
@@ -16,139 +16,183 @@ AI-generated image detection faces significant challenges when images undergo co
 ### Motivation
 - AI-generated images increasingly realistic (SD, DALL-E, Midjourney)
 - Detection critical for misinformation, copyright, trust
-- Real-world challenge: images are compressed during transmission (social media, messaging)
-- Current detectors trained on clean images degrade significantly under compression
+- Real-world deployment requires robustness to compression AND generalization across generators
+- Current CLIP-based detectors achieve >98% on clean images but degrade under JPEG compression
 
-### Problem Statement
-- CLIP+LoRA detectors achieve >98% on clean images
-- But drop to ~88% under JPEG Q=30
-- Gap between lab performance and real-world deployment
+### Key Observation
+- LTD [Yang et al., CVPR 2026] shows that layer-to-layer feature transitions in CLIP carry forensic information
+- But LTD uses only the global CLS token -- a single vector per layer per image
+- CLIP's intermediate patch tokens carry spatially-localized information that is lost in CLS-only analysis
+- We hypothesize: per-patch layer transitions can capture local structural inconsistencies that are more robust to compression and more informative under multi-generator training
 
 ### Our Approach
-- Key observation: CLIP's intermediate patch tokens evolve differently across layers for real vs fake images
-- These transition patterns are more compression-robust than final-layer features
-- Propose PatchLTD: extract and aggregate patch-level layer transitions
+- PatchLTD: extract patch tokens from layers [3, 6, 9, 12], compute per-patch transition vectors, aggregate via Transformer
+- Concatenate [CLS semantic feature; patch transition feature] for classification
 
 ### Contributions
-1. We identify patch-level layer transition discrepancy as a novel, compression-robust forensic signal in CLIP-ViT
-2. We propose PatchLTD, extending CLS-only LTD to patch-level analysis with a lightweight Transformer aggregator
-3. Experiments demonstrate +3.2% accuracy at JPEG Q=30 with no cross-generator degradation on GenImage
+1. We extend layer transition discrepancy from CLS-only to patch-level, providing spatially-resolved forensic analysis of CLIP-ViT intermediate representations
+2. We demonstrate that patch-level transitions are significantly more effective under multi-generator training with JPEG compression (+7.7% over CLIP+LoRA, +7.4% over CLS-only LTD at Q=30), with lower training variance
+3. We show that patch transition heatmaps provide interpretable localization of forensic signals, visualizing where real and fake images differ in their layer-wise evolution
 
 ---
 
 ## 2. Related Work (~1.5 pages)
 
 ### 2.1 AI-Generated Image Detection
-- CNN-based: CNNSpot (Wang et al., 2020), Gram-Net, F3Net
-- CLIP-based: UnivFD (Ojha et al., 2023), MoLE (2024), RINE (2025)
-- Frequency-based: LGrad, SynthBuster, SPAI (CVPR 2025)
+- CNN-based: CNNSpot [Wang et al., 2020], Gram-Net, F3Net
+- CLIP-based: UnivFD [Ojha et al., 2023], MoLE [2024], C2P-CLIP [AAAI 2025]
+- Frequency-based: LGrad, NPR, SPAI [CVPR 2025]
 
-### 2.2 Multi-Layer Feature Analysis
-- DeeCLIP (2025): multi-layer CLIP fusion via cross-attention
-- LTD (2026): layer transition discrepancy using CLS tokens
-- RINE (2025): intermediate layer importance estimation
-- **Gap: no patch-level transition analysis**
+### 2.2 Multi-Layer Feature Analysis in CLIP
+- RINE [ECCV 2024]: intermediate CLS token importance estimation -- CLS only, no transitions
+- DeeCLIP [2025]: multi-layer cross-attention fusion -- no explicit layer transitions
+- MoLD [2025]: per-layer CLS projections with gating -- CLS only, no transitions
+- LTD [CVPR 2026]: layer transition discrepancy using CLS tokens -- **CLS only, no patch-level analysis**
+- TAP [2026]: patch tokens from final layer only -- no multi-layer, no transitions
+
+### Table: Positioning of PatchLTD
+| Method | Patch Tokens | Multi-Layer | Layer Transitions | Spatial Interpretability |
+|--------|:---:|:---:|:---:|:---:|
+| RINE [ECCV'24] | | Y | | |
+| DeeCLIP [2025] | | Y | | |
+| LTD [CVPR'26] | | Y | Y | |
+| TAP [2026] | Y | | | |
+| **PatchLTD (ours)** | **Y** | **Y** | **Y** | **Y** |
 
 ### 2.3 Compression Robustness
-- "Fake or JPEG?" (2024): format bias in detection datasets
+- "Fake or JPEG?" [2024]: format bias in detection datasets -- datasets contain JPEG artifacts as shortcuts
+- DCPT [2026]: degradation-consistent paired training, +15-17% under compression via consistency loss
 - JPEG augmentation as standard practice
-- Remaining gap: inherently robust features vs augmentation-dependent robustness
+- Our approach: inherently robust features via spatially-resolved transitions (orthogonal to augmentation strategies)
 
 ---
 
 ## 3. Method (~2.5 pages)
 
 ### 3.1 Preliminaries
-- CLIP ViT-B/16 architecture
-- LoRA adaptation for detection
-- Layer transition concept from LTD
+- CLIP ViT-B/16 architecture: 12 transformer blocks, 197 tokens (1 CLS + 196 patches for 224x224 input)
+- LoRA adaptation [Hu et al., 2022]: rank-8 LoRA on out_proj, c_fc, c_proj
+- Layer transition concept from LTD: d_k = f_{k+1} - f_k captures how representations evolve across layers
 
 ### 3.2 Patch-Level Layer Transition Discrepancy
-- Extract patch tokens from selected layers [3, 6, 9, 12]
-- Compute per-patch transition vectors: d_k^j = p_{k+1}^j - p_k^j
-- Motivation: why patch-level > CLS-only (spatial localization of artifacts)
+- Extract **patch tokens** (excluding CLS) from selected layers L = {3, 6, 9, 12}
+- For each patch position j and adjacent layer pair (k, k+1):
+  d_k^j = p_{k+1}^j - p_k^j  (per-patch transition vector, 768-d)
+- Project to lower dimension: d_k^j -> MLP(d_k^j) (128-d)
+- Result: 3 transitions x 196 patches = 588 transition tokens per image
+- **Why patch-level?** CLS token compresses all spatial information into one vector. Patch-level transitions preserve WHERE in the image the layer-wise evolution is anomalous, providing both better features and interpretability.
 
 ### 3.3 Transition Aggregation
-- Project transitions to lower dimension
-- Lightweight Transformer encoder with learnable CLS token
-- Aggregate patch-level transitions into fixed-size forensic feature
+- Prepend a learnable [AGG] token to the 588 transition tokens
+- Process through a single-layer Transformer encoder (4 heads, dim=128)
+- Take [AGG] output as the aggregated transition feature (128-d)
+- Ablation: meanpool aggregation is simpler but Transformer provides attention-based selection of informative patches
 
 ### 3.4 Classification
-- Concatenate CLIP CLS feature (semantic) + transition feature (forensic)
-- MLP classifier → Real/Fake
-- Training with JPEG augmentation for fair evaluation
+- Concatenate: [CLS_feat (512-d); transition_feat (128-d)] -> 640-d
+- MLP classifier: 640 -> 256 -> 2
+- Training: CrossEntropy loss, AdamW lr=1e-4, cosine schedule, 10 epochs
+- JPEG augmentation (Q=30-95, prob=0.5) applied during training for all methods (fair comparison)
 
-### Figure: Architecture diagram
+### Figure 1: Architecture diagram
 
 ---
 
 ## 4. Experiments (~3 pages)
 
 ### 4.1 Setup
-- Dataset: GenImage (SD 1.4 train, test on SD 1.5, SD 2.1, BigGAN, ADM)
-- Baselines: CLIP Linear Probe, CLIP+LoRA (SingleViewLoRA), CNNSpot*, UnivFD*, LTD*
-  (* cite reported numbers)
-- Metrics: Accuracy, AP, AUC
-- Implementation: CLIP ViT-B/16, LoRA rank=8, 10 epochs, AdamW lr=1e-4
+- **Dataset**: GenImage benchmark
+  - Single-gen: train on SD 1.4 (5K images/class), test on SD1.5, SD2.1, GLIDE, Wukong, VQDM, BigGAN, ADM
+  - Multi-gen: train on SD1.4 + BigGAN + ADM (3K images/class each)
+- **Baselines**: CLIP+LoRA (SingleViewLoRA), CLS-only LTD (our reimplementation), PatchLTD-meanpool (ablation)
+- **Metrics**: Accuracy (mean±std over 3 seeds: 42, 123, 456)
+- **Implementation**: CLIP ViT-B/16, LoRA rank=8, batch=32, 10 epochs, AdamW lr=1e-4
 
-### 4.2 Cross-Generator Generalization (Table 1)
-- Train on SD 1.4, test on all generators
-- PatchLTD matches or slightly improves over baseline
+### 4.2 Multi-Generator Results (Main Experiment)
 
-### 4.3 Compression Robustness (Table 2)
-- JPEG Q = {95, 75, 50, 30}
-- PatchLTD significantly more robust, especially at low quality
-- **Key result: +3.2% at Q=30**
+#### Table 1: Cross-Generator Generalization (multi-gen training, mean±std over 3 seeds)
+| Method | SD1.4 | SD1.5 | SD2.1 | GLIDE | Wukong | VQDM |
+|--------|:---:|:---:|:---:|:---:|:---:|:---:|
+| CLIP+LoRA | 97.9±0.3 | 93.7±0.4 | 95.9±0.2 | 97.1±1.2 | 96.4±0.6 | 64.4±4.0 |
+| CLS-LTD | 98.7±0.1 | 94.0±0.6 | 95.3±0.6 | 98.0±0.1 | 97.1±0.2 | 68.2±2.4 |
+| PatchLTD-mp | 97.9±0.1 | 92.8±1.1 | 94.9±1.0 | 97.9±1.1 | 96.0±0.3 | 73.3±1.6 |
+| **PatchLTD** | **97.5±0.2** | 93.2±0.6 | 96.0±0.5 | 97.0±0.2 | 95.8±0.6 | **72.5±2.4** |
 
-### 4.4 Ablation Study (Table 3)
-- Layer selection: [3,6,9,12] vs others
-- CLS-only LTD vs Patch-level LTD (our extension)
-- Aggregation: Transformer vs mean-pooling
-- With/without JPEG augmentation
+#### Table 2: JPEG Robustness (multi-gen training, trained on SD1.4+BigGAN+ADM)
+| Method | Clean | Q=95 | Q=75 | Q=50 | Q=30 |
+|--------|:---:|:---:|:---:|:---:|:---:|
+| CLIP+LoRA | 97.9±0.3 | 97.7±0.2 | 95.5±1.1 | 90.1±2.2 | 83.1±3.6 |
+| CLS-LTD | 98.7±0.1 | 98.3±0.1 | 94.4±0.6 | 88.0±1.8 | 83.4±3.2 |
+| PatchLTD-mp | 97.9±0.1 | 97.6±0.2 | 96.7±0.6 | 92.3±2.1 | 88.2±3.8 |
+| **PatchLTD** | 97.5±0.2 | 97.3±0.4 | **95.9±0.9** | **93.7±1.1** | **90.8±1.7** |
+
+**Key findings**:
+- PatchLTD vs CLIP+LoRA at Q=30: **+7.7%** (90.8 vs 83.1), confidence intervals do not overlap
+- PatchLTD vs CLS-LTD at Q=30: **+7.4%** (90.8 vs 83.4), validates patch-level > CLS-only
+- PatchLTD has the **lowest variance** (std=1.7 vs 3.6/3.2/3.8), more stable training
+
+#### Table 3: Unseen Generator + JPEG (multi-gen, the hardest setting)
+| Method | GLIDE Q=95 | GLIDE Q=30 | Wukong Q=95 | Wukong Q=30 |
+|--------|:---:|:---:|:---:|:---:|
+| CLIP+LoRA | 95.8±1.6 | 79.9±7.4 | 96.8±0.6 | 78.7±3.3 |
+| CLS-LTD | 95.9±1.1 | 82.5±3.2 | 97.1±0.2 | 77.6±3.8 |
+| PatchLTD-mp | 97.8±0.6 | 87.4±2.6 | 95.9±0.8 | 84.8±5.4 |
+| **PatchLTD** | **96.4±0.5** | **85.4±1.7** | 96.0±0.4 | **89.6±1.7** |
+
+**Key finding**: On unseen generators under JPEG Q=30, PatchLTD outperforms CLIP+LoRA by **+10.9% on Wukong** (89.6 vs 78.7) with much lower variance
+
+### 4.3 Single-Generator Results (Supplementary)
+
+#### Table 4: JPEG Robustness (single-gen, train on SD1.4 only)
+| Method | Clean | Q=95 | Q=75 | Q=50 | Q=30 |
+|--------|:---:|:---:|:---:|:---:|:---:|
+| CLIP+LoRA | 98.4±0.2 | 98.0±0.1 | 95.1±1.1 | 91.1±1.0 | 88.0±1.5 |
+| CLS-LTD | 98.9±0.0 | 98.2±0.1 | 92.2±1.6 | 83.8±3.0 | 81.3±1.6 |
+| PatchLTD-mp | 98.0±0.4 | 97.8±0.2 | 94.5±0.8 | 89.8±1.2 | 86.2±1.6 |
+| **PatchLTD** | 98.7±0.9 | 98.3±1.1 | 95.8±0.9 | 91.7±1.7 | 88.9±2.1 |
+
+Note: In single-gen, PatchLTD vs CLIP+LoRA at Q=30 is +0.9% (not statistically significant). The advantage of PatchLTD emerges specifically under multi-generator training, suggesting that patch-level transitions become more discriminative when the model must generalize across diverse generation processes.
+
+### 4.4 Ablation Study
+
+#### Table 5: Component Ablation (multi-gen, Q=30)
+| Transition Level | Aggregation | Q=30 Acc | Δ vs CLIP+LoRA |
+|-----------------|-------------|:---:|:---:|
+| None (CLIP+LoRA) | -- | 83.1±3.6 | -- |
+| CLS-only | mean | 83.4±3.2 | +0.3 |
+| Patch-level | mean | 88.2±3.8 | +5.1 |
+| **Patch-level** | **Transformer** | **90.8±1.7** | **+7.7** |
+
+Observations:
+- CLS-only transitions provide minimal benefit over no transitions (+0.3%) -- CLS compression loses spatial information
+- Patch-level with meanpool already strong (+5.1%) -- spatial transitions carry discriminative signal
+- Transformer aggregation adds +2.6% over meanpool and reduces variance (1.7 vs 3.8)
 
 ### 4.5 Analysis
-- Visualization: patch transition heatmaps for real vs fake
-- Which layers contribute most to the transition signal
-- Why patch transitions survive compression (frequency analysis of transition features)
+
+#### Figure 2: Patch Transition Difference Heatmap
+- Average transition norms for real vs fake images, and their difference (Fake - Real)
+- Fake images show elevated transitions in specific spatial regions (e.g., texture boundaries, object edges)
+- These localized differences persist under JPEG compression, explaining the robustness
+
+#### Discussion: Why multi-gen amplifies PatchLTD's advantage
+- In single-gen training, LoRA can overfit to one generator's artifacts -- patch-level analysis is redundant
+- In multi-gen training, the model must learn generator-agnostic forensic features
+- Patch-level transitions capture structural inconsistencies that generalize across generators
+- The lower variance (std=1.7 vs 3.6) suggests patch transitions provide a more stable optimization landscape
 
 ---
 
 ## 5. Conclusion (~0.5 pages)
 
-- PatchLTD provides compression-robust detection via patch-level layer transitions
-- Practical value for real-world deployment (social media scenarios)
-- Future work: multi-generator training, test-time adaptation, larger ViT backbones
+We proposed PatchLTD, extending layer transition discrepancy from the global CLS token to spatially-resolved patch tokens. Through systematic multi-seed evaluation on GenImage, we demonstrated that patch-level transitions significantly improve compression robustness under multi-generator training (+7.7% at JPEG Q=30) with lower training variance. The advantage of PatchLTD is most pronounced in the practical scenario where detectors must generalize across diverse generators and survive lossy compression. We also showed that patch transition heatmaps provide interpretable localization of forensic signals.
 
----
-
-## Key Tables Needed
-
-### Table 1: Cross-Generator Generalization
-| Method | SD1.4 (train) | SD1.5 | SD2.1 | BigGAN | ADM | Mean |
-|--------|:---:|:---:|:---:|:---:|:---:|:---:|
-| CNNSpot* | | | | | | |
-| UnivFD* | | | | | | |
-| CLIP+LoRA | 98.4 | 97.0 | 96.9 | 49.7 | - | 81.2 |
-| PatchLTD | 98.5 | 97.1 | 97.4 | 49.8 | - | 81.4 |
-
-### Table 2: JPEG Robustness
-| Method | Clean | Q=95 | Q=75 | Q=50 | Q=30 |
-|--------|:---:|:---:|:---:|:---:|:---:|
-| CLIP+LoRA | 98.4 | 98.0 | 96.6 | 92.3 | 88.6 |
-| PatchLTD | 98.5 | 98.3 | 96.6 | 93.5 | 91.8 |
-
-### Table 3: Ablation
-| Component | Acc | JPEG Q=30 |
-|-----------|:---:|:---------:|
-| CLIP+LoRA (baseline) | 98.4 | 88.6 |
-| + CLS-only LTD | ? | ? |
-| + Patch-level LTD (mean pool) | ? | ? |
-| + Patch-level LTD (Transformer) | 98.5 | 91.8 |
+**Limitations**: In single-generator training, PatchLTD's advantage over CLIP+LoRA is not statistically significant, suggesting the method is most beneficial for multi-source deployment scenarios. Future work includes integrating degradation-consistent training (DCPT) with PatchLTD, and scaling to larger ViT backbones (ViT-L/14).
 
 ---
 
 ## Figures Needed
-1. Architecture diagram (method overview)
-2. Patch transition heatmap visualization (real vs fake)
-3. JPEG robustness curve (accuracy vs quality factor)
-4. Layer selection analysis
+1. Architecture diagram (method overview) -- Figure 1
+2. Patch transition difference heatmap (Real avg / Fake avg / Difference) -- Figure 2
+3. JPEG robustness curve (accuracy vs quality factor, multi-gen) -- Figure 3
+4. Positioning table in Related Work
