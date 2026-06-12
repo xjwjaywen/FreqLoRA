@@ -1,9 +1,11 @@
 """Dataset loading for GenImage benchmark."""
 import os
+import random
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageFilter
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
+import torchvision.transforms.functional as TF
 
 
 class GenImageDataset(Dataset):
@@ -29,9 +31,13 @@ class GenImageDataset(Dataset):
         transform=None,
         max_per_class: int = None,
         jpeg_quality: int = None,
+        degradation: str = None,
+        degradation_value: float = None,
     ):
         self.transform = transform
         self.jpeg_quality = jpeg_quality
+        self.degradation = degradation
+        self.degradation_value = degradation_value
         self.images = []
         self.labels = []
 
@@ -114,6 +120,8 @@ class GenImageDataset(Dataset):
             img.save(buf, format="JPEG", quality=self.jpeg_quality)
             buf.seek(0)
             img = Image.open(buf).convert("RGB")
+        if self.degradation is not None:
+            img = apply_fixed_degradation(img, self.degradation, self.degradation_value)
         if self.transform:
             img = self.transform(img)
         return img, label
@@ -136,6 +144,102 @@ class RandomJPEGCompression:
         return img
 
 
+def _roundtrip_compression(img, fmt: str, quality: int):
+    import io
+    buf = io.BytesIO()
+    try:
+        img.save(buf, format=fmt, quality=quality)
+    except Exception:
+        return img
+    buf.seek(0)
+    return Image.open(buf).convert("RGB")
+
+
+def apply_fixed_degradation(img, degradation: str, value: float = None):
+    """Apply a deterministic degradation for evaluation."""
+    degradation = degradation.lower()
+    if degradation == "jpeg":
+        quality = int(value if value is not None else 50)
+        return _roundtrip_compression(img, "JPEG", quality)
+    if degradation == "webp":
+        quality = int(value if value is not None else 50)
+        return _roundtrip_compression(img, "WEBP", quality)
+    if degradation == "blur":
+        radius = float(value if value is not None else 1.0)
+        return img.filter(ImageFilter.GaussianBlur(radius=radius))
+    if degradation == "downsample":
+        scale = float(value if value is not None else 0.5)
+        scale = min(max(scale, 0.1), 1.0)
+        w, h = img.size
+        small = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.BICUBIC)
+        return small.resize((w, h), Image.BICUBIC)
+    raise ValueError(f"Unknown degradation: {degradation}")
+
+
+class RandomDegradation:
+    """Apply one random real-world degradation to a PIL image."""
+
+    def __init__(
+        self,
+        degradations=("jpeg", "blur", "downsample"),
+        jpeg_quality_range=(30, 95),
+        webp_quality_range=(30, 95),
+        blur_radius_range=(0.5, 2.0),
+        downsample_scale_range=(0.35, 0.75),
+    ):
+        self.degradations = tuple(degradations)
+        self.jpeg_quality_range = jpeg_quality_range
+        self.webp_quality_range = webp_quality_range
+        self.blur_radius_range = blur_radius_range
+        self.downsample_scale_range = downsample_scale_range
+
+    def __call__(self, img):
+        if not self.degradations:
+            return img
+        degradation = random.choice(self.degradations)
+        if degradation == "jpeg":
+            q = random.randint(*self.jpeg_quality_range)
+            return apply_fixed_degradation(img, "jpeg", q)
+        if degradation == "webp":
+            q = random.randint(*self.webp_quality_range)
+            return apply_fixed_degradation(img, "webp", q)
+        if degradation == "blur":
+            radius = random.uniform(*self.blur_radius_range)
+            return apply_fixed_degradation(img, "blur", radius)
+        if degradation == "downsample":
+            scale = random.uniform(*self.downsample_scale_range)
+            return apply_fixed_degradation(img, "downsample", scale)
+        raise ValueError(f"Unknown degradation: {degradation}")
+
+
+class PairedDegradationTransform:
+    """
+    Return clean/degraded tensor views with shared resize and flip.
+
+    The shared spatial transform keeps patch positions aligned for transition
+    feature consistency.
+    """
+
+    def __init__(self, image_size: int = 224, degradations=("jpeg", "blur", "downsample")):
+        self.image_size = image_size
+        self.degradation = RandomDegradation(degradations=degradations)
+        self.normalize = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225],
+        )
+
+    def _to_tensor(self, img):
+        return self.normalize(TF.to_tensor(img))
+
+    def __call__(self, img):
+        img = TF.resize(img, (self.image_size, self.image_size))
+        if random.random() < 0.5:
+            img = TF.hflip(img)
+        clean = img
+        degraded = self.degradation(img)
+        return self._to_tensor(clean), self._to_tensor(degraded)
+
+
 def get_transforms(image_size: int = 224, is_train: bool = True, jpeg_aug: bool = False):
     if is_train:
         t = [transforms.Resize((image_size, image_size))]
@@ -153,6 +257,13 @@ def get_transforms(image_size: int = 224, is_train: bool = True, jpeg_aug: bool 
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
+
+
+def get_paired_degradation_transforms(
+    image_size: int = 224,
+    degradations=("jpeg", "blur", "downsample"),
+):
+    return PairedDegradationTransform(image_size=image_size, degradations=degradations)
 
 
 def get_available_generators(data_dir: str) -> list:

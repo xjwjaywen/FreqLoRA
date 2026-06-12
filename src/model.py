@@ -151,7 +151,19 @@ class PatchLTDDetector(nn.Module):
             # (B, num_transitions * num_patches, proj_dim)
             return torch.cat(transitions, dim=1)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def _aggregate_transitions(self, transitions: torch.Tensor, batch_size: int) -> torch.Tensor:
+        """Aggregate projected transition tokens into one forensic feature."""
+        if self.patch_mode == "meanpool":
+            return transitions.mean(dim=1)
+        if self.patch_mode == "cls_only":
+            return transitions.mean(dim=1)
+
+        cls_token = self.transition_cls.expand(batch_size, -1, -1)
+        tokens = torch.cat([cls_token, transitions], dim=1)
+        aggregated = self.transition_aggregator(tokens)
+        return aggregated[:, 0, :]
+
+    def _encode(self, x: torch.Tensor):
         self.intermediate_features.clear()
 
         # Forward through CLIP (hooks capture intermediate features)
@@ -163,20 +175,22 @@ class PatchLTDDetector(nn.Module):
         # Compute transitions
         B = x.shape[0]
         transitions = self._compute_transitions(B)
-
-        # Aggregate based on mode
-        if self.patch_mode == "meanpool":
-            transition_feat = transitions.mean(dim=1)  # (B, proj_dim)
-        elif self.patch_mode == "cls_only":
-            transition_feat = transitions.mean(dim=1)  # (B, proj_dim) - mean of CLS transitions
-        else:  # "transformer"
-            cls_token = self.transition_cls.expand(B, -1, -1)
-            tokens = torch.cat([cls_token, transitions], dim=1)
-            aggregated = self.transition_aggregator(tokens)
-            transition_feat = aggregated[:, 0, :]  # (B, proj_dim)
+        transition_feat = self._aggregate_transitions(transitions, B)
 
         # Fuse CLS + transition features
-        features = torch.cat([cls_feat, transition_feat], dim=-1)
+        fused_feat = torch.cat([cls_feat, transition_feat], dim=-1)
+        return fused_feat, transition_feat
+
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        fused_feat, _ = self._encode(x)
+        return fused_feat
+
+    def forward_with_features(self, x: torch.Tensor):
+        fused_feat, transition_feat = self._encode(x)
+        return self.classifier(fused_feat), transition_feat
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        features = self.forward_features(x)
         return self.classifier(features)
 
 
@@ -226,11 +240,18 @@ class SingleViewLoRA(nn.Module):
             nn.Linear(fusion_dim, 2),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         feat = self.visual(x)
         if isinstance(feat, tuple):
             feat = feat[0]
-        feat = F.normalize(feat, dim=-1)
+        return F.normalize(feat, dim=-1)
+
+    def forward_with_features(self, x: torch.Tensor):
+        feat = self.forward_features(x)
+        return self.classifier(feat), feat
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        feat = self.forward_features(x)
         return self.classifier(feat)
 
 
@@ -255,10 +276,18 @@ class CLIPLinearProbe(nn.Module):
 
         self.classifier = nn.Linear(self.clip_dim, 2)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
             features = self.visual(x)
             if isinstance(features, tuple):
                 features = features[0]
             features = F.normalize(features, dim=-1)
+        return features
+
+    def forward_with_features(self, x: torch.Tensor):
+        features = self.forward_features(x)
+        return self.classifier(features), features
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        features = self.forward_features(x)
         return self.classifier(features)

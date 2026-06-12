@@ -14,6 +14,10 @@ training:
   weight_decay: 0.01
   warmup_steps: 500
   seed: 42
+  degradation_consistency: false
+  lambda_feat: 0.1
+  lambda_pred: 0.5
+  degradations: ["jpeg", "blur", "downsample"]
 
 dataset:
   data_dir: "./data/GenImage"
