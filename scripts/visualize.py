@@ -80,18 +80,19 @@ def viz_difference_heatmap(model, dataset, output_dir, num_samples=100, device="
     output_dir.mkdir(parents=True, exist_ok=True)
 
     real_heatmaps, fake_heatmaps = [], []
-    for i in range(min(num_samples * 2, len(dataset))):
+    for i in range(len(dataset)):
         img_tensor, label = dataset[i]
         heatmap = get_patch_transition_heatmap(model, img_tensor, device)
-        if label == 0:
+        if label == 0 and len(real_heatmaps) < num_samples:
             real_heatmaps.append(heatmap)
-        else:
+        elif label == 1 and len(fake_heatmaps) < num_samples:
             fake_heatmaps.append(heatmap)
         if len(real_heatmaps) >= num_samples and len(fake_heatmaps) >= num_samples:
             break
 
-    avg_real = np.mean(real_heatmaps[:num_samples], axis=0)
-    avg_fake = np.mean(fake_heatmaps[:num_samples], axis=0)
+    print(f"  Collected {len(real_heatmaps)} real + {len(fake_heatmaps)} fake heatmaps")
+    avg_real = np.mean(real_heatmaps, axis=0)
+    avg_fake = np.mean(fake_heatmaps, axis=0)
     diff = avg_fake - avg_real
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
@@ -122,16 +123,17 @@ def viz_transition_norm_histogram(model, dataset, output_dir, num_samples=200, d
     output_dir.mkdir(parents=True, exist_ok=True)
 
     real_norms, fake_norms = [], []
-    for i in range(min(num_samples * 2, len(dataset))):
+    for i in range(len(dataset)):
         img_tensor, label = dataset[i]
         heatmap = get_patch_transition_heatmap(model, img_tensor, device)
         mean_norm = heatmap.mean()
-        if label == 0:
+        if label == 0 and len(real_norms) < num_samples:
             real_norms.append(mean_norm)
-        else:
+        elif label == 1 and len(fake_norms) < num_samples:
             fake_norms.append(mean_norm)
         if len(real_norms) >= num_samples and len(fake_norms) >= num_samples:
             break
+    print(f"  Collected {len(real_norms)} real + {len(fake_norms)} fake norms")
 
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.hist(real_norms, bins=30, alpha=0.6, color="blue", label="Real", density=True)
@@ -159,12 +161,12 @@ def viz_jpeg_histogram(model, dataset_cls, data_dir, generator, output_dir,
                          transform=val_transform, max_per_class=num_samples,
                          jpeg_quality=q)
         real_norms, fake_norms = [], []
-        for i in range(min(num_samples * 2, len(ds))):
+        for i in range(len(ds)):
             img_tensor, label = ds[i]
             heatmap = get_patch_transition_heatmap(model, img_tensor, device)
-            if label == 0:
+            if label == 0 and len(real_norms) < num_samples:
                 real_norms.append(heatmap.mean())
-            else:
+            elif label == 1 and len(fake_norms) < num_samples:
                 fake_norms.append(heatmap.mean())
             if len(real_norms) >= num_samples and len(fake_norms) >= num_samples:
                 break
