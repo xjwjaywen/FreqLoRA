@@ -18,13 +18,15 @@ for SEED in 42 123 456; do
             --data_dir ./data/GenImage \
             --method "$METHOD" \
             --multi_gen "$MULTI_GEN" \
-            --max_train "$MAX_TRAIN"
+            --max_train "$MAX_TRAIN" \
+            --seed "$SEED"
     else
         python train.py \
             --data_dir ./data/GenImage \
             --train_gen "$TRAIN_GEN" \
             --method "$METHOD" \
-            --max_train "$MAX_TRAIN"
+            --max_train "$MAX_TRAIN" \
+            --seed "$SEED"
     fi
 
     # Rename output with seed

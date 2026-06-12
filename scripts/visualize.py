@@ -1,8 +1,10 @@
-"""Generate patch transition heatmaps and t-SNE visualizations."""
+"""Generate visualizations for the paper."""
 import argparse
 import torch
 import torch.nn.functional as F
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
 from PIL import Image
@@ -33,155 +35,166 @@ def load_model(checkpoint_dir, config_path="configs/default.yaml", device="cuda"
 
 def get_patch_transition_heatmap(model, image_tensor, device="cuda"):
     """Extract per-patch transition norms as a heatmap."""
-    model.eval()
     image_tensor = image_tensor.unsqueeze(0).to(device)
-
     with torch.no_grad():
         model.intermediate_features.clear()
         _ = model.visual(image_tensor)
-
         B = 1
         layer_tokens = model._get_layer_tokens(B)
-        # Get patch tokens (exclude CLS)
         layer_patches = [t[:, 1:, :] for t in layer_tokens]
-
-        # Compute transition norms per patch
         all_norms = []
         for k in range(len(layer_patches) - 1):
-            d = layer_patches[k + 1] - layer_patches[k]  # (1, 196, 768)
-            norms = d.norm(dim=-1).squeeze(0)  # (196,)
+            d = layer_patches[k + 1] - layer_patches[k]
+            norms = d.norm(dim=-1).squeeze(0)
             all_norms.append(norms)
-
-        # Average across transitions
-        avg_norms = torch.stack(all_norms).mean(dim=0)  # (196,)
-        # Reshape to spatial grid (14x14 for ViT-B/16 with 224x224 input)
+        avg_norms = torch.stack(all_norms).mean(dim=0)
         grid_size = int(avg_norms.shape[0] ** 0.5)
         heatmap = avg_norms.reshape(grid_size, grid_size).cpu().numpy()
-
     return heatmap
 
 
-def visualize_heatmaps(model, dataset, output_dir, num_samples=4, device="cuda"):
-    """Generate side-by-side heatmaps for real vs fake images."""
+def get_fused_feature(model, image_tensor, device="cuda"):
+    """Extract the full [CLS; transition] fused feature."""
+    image_tensor = image_tensor.unsqueeze(0).to(device)
+    with torch.no_grad():
+        model.intermediate_features.clear()
+        cls_feat = model.visual(image_tensor)
+        if isinstance(cls_feat, tuple):
+            cls_feat = cls_feat[0]
+        cls_feat = F.normalize(cls_feat, dim=-1)
+
+        B = 1
+        transitions = model._compute_transitions(B)
+        cls_token = model.transition_cls.expand(B, -1, -1)
+        tokens = torch.cat([cls_token, transitions], dim=1)
+        aggregated = model.transition_aggregator(tokens)
+        transition_feat = aggregated[:, 0, :]
+
+        fused = torch.cat([cls_feat, transition_feat], dim=-1)
+    return fused.squeeze(0).cpu().numpy()
+
+
+def viz_difference_heatmap(model, dataset, output_dir, num_samples=100, device="cuda"):
+    """Difference heatmap: avg(fake) - avg(real) transition norms."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Collect real and fake samples
-    real_indices = [i for i in range(len(dataset)) if dataset.labels[i] == 0]
-    fake_indices = [i for i in range(len(dataset)) if dataset.labels[i] == 1]
-
-    fig, axes = plt.subplots(2, num_samples * 2, figsize=(num_samples * 8, 6))
-    fig.suptitle("Patch Transition Heatmaps: Real vs Fake", fontsize=16)
-
-    denorm = transforms.Normalize(
-        mean=[-0.485/0.229, -0.456/0.224, -0.406/0.225],
-        std=[1/0.229, 1/0.224, 1/0.225]
-    )
-
-    for col, (idx, label) in enumerate(
-        [(real_indices[i], "Real") for i in range(num_samples)] +
-        [(fake_indices[i], "Fake") for i in range(num_samples)]
-    ):
-        img_tensor, _ = dataset[idx]
+    real_heatmaps, fake_heatmaps = [], []
+    for i in range(min(num_samples * 2, len(dataset))):
+        img_tensor, label = dataset[i]
         heatmap = get_patch_transition_heatmap(model, img_tensor, device)
+        if label == 0:
+            real_heatmaps.append(heatmap)
+        else:
+            fake_heatmaps.append(heatmap)
+        if len(real_heatmaps) >= num_samples and len(fake_heatmaps) >= num_samples:
+            break
 
-        # Show original image
-        img_show = denorm(img_tensor).permute(1, 2, 0).clamp(0, 1).numpy()
-        axes[0, col].imshow(img_show)
-        axes[0, col].set_title(f"{label}", fontsize=12)
-        axes[0, col].axis("off")
+    avg_real = np.mean(real_heatmaps[:num_samples], axis=0)
+    avg_fake = np.mean(fake_heatmaps[:num_samples], axis=0)
+    diff = avg_fake - avg_real
 
-        # Show heatmap
-        axes[1, col].imshow(heatmap, cmap="hot", interpolation="bilinear")
-        axes[1, col].set_title(f"Transition Norm", fontsize=10)
-        axes[1, col].axis("off")
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    im0 = axes[0].imshow(avg_real, cmap="hot", interpolation="bilinear")
+    axes[0].set_title("Real (avg)", fontsize=13)
+    axes[0].axis("off")
+    plt.colorbar(im0, ax=axes[0], fraction=0.046)
+
+    im1 = axes[1].imshow(avg_fake, cmap="hot", interpolation="bilinear")
+    axes[1].set_title("Fake (avg)", fontsize=13)
+    axes[1].axis("off")
+    plt.colorbar(im1, ax=axes[1], fraction=0.046)
+
+    im2 = axes[2].imshow(diff, cmap="RdBu_r", interpolation="bilinear", vmin=-diff.max(), vmax=diff.max())
+    axes[2].set_title("Fake - Real (difference)", fontsize=13)
+    axes[2].axis("off")
+    plt.colorbar(im2, ax=axes[2], fraction=0.046)
 
     plt.tight_layout()
-    plt.savefig(output_dir / "patch_transition_heatmaps.png", dpi=150, bbox_inches="tight")
+    plt.savefig(output_dir / "difference_heatmap.png", dpi=200, bbox_inches="tight")
     plt.close()
-    print(f"Saved heatmaps to {output_dir / 'patch_transition_heatmaps.png'}")
+    print(f"Saved to {output_dir / 'difference_heatmap.png'}")
 
 
-def visualize_jpeg_robustness(model, dataset_class, data_dir, generator, output_dir,
-                               num_samples=200, device="cuda"):
-    """Show how transition features change under JPEG compression."""
+def viz_transition_norm_histogram(model, dataset, output_dir, num_samples=200, device="cuda"):
+    """Histogram of per-image mean transition norms: real vs fake."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    real_norms, fake_norms = [], []
+    for i in range(min(num_samples * 2, len(dataset))):
+        img_tensor, label = dataset[i]
+        heatmap = get_patch_transition_heatmap(model, img_tensor, device)
+        mean_norm = heatmap.mean()
+        if label == 0:
+            real_norms.append(mean_norm)
+        else:
+            fake_norms.append(mean_norm)
+        if len(real_norms) >= num_samples and len(fake_norms) >= num_samples:
+            break
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.hist(real_norms, bins=30, alpha=0.6, color="blue", label="Real", density=True)
+    ax.hist(fake_norms, bins=30, alpha=0.6, color="red", label="Fake", density=True)
+    ax.set_xlabel("Mean Patch Transition Norm", fontsize=12)
+    ax.set_ylabel("Density", fontsize=12)
+    ax.set_title("Distribution of Patch Transition Norms", fontsize=14)
+    ax.legend(fontsize=12)
+    plt.tight_layout()
+    plt.savefig(output_dir / "transition_norm_histogram.png", dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"Saved to {output_dir / 'transition_norm_histogram.png'}")
+
+
+def viz_jpeg_histogram(model, dataset_cls, data_dir, generator, output_dir,
+                       num_samples=200, device="cuda"):
+    """Compare transition norm distributions: clean vs JPEG compressed."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
     val_transform = get_transforms(224, is_train=False)
-    qualities = [None, 95, 75, 50, 30]
-    labels_list = ["Clean", "Q=95", "Q=75", "Q=50", "Q=30"]
 
-    all_heatmaps_real = {q: [] for q in qualities}
-    all_heatmaps_fake = {q: [] for q in qualities}
-
-    for q in qualities:
-        ds = GenImageDataset(data_dir, generator, split="val",
-                              transform=val_transform, max_per_class=num_samples,
-                              jpeg_quality=q)
-        for i in range(min(num_samples, len(ds))):
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    for col, q in enumerate([None, 50, 30]):
+        ds = dataset_cls(data_dir, generator, split="val",
+                         transform=val_transform, max_per_class=num_samples,
+                         jpeg_quality=q)
+        real_norms, fake_norms = [], []
+        for i in range(min(num_samples * 2, len(ds))):
             img_tensor, label = ds[i]
             heatmap = get_patch_transition_heatmap(model, img_tensor, device)
             if label == 0:
-                all_heatmaps_real[q].append(heatmap)
+                real_norms.append(heatmap.mean())
             else:
-                all_heatmaps_fake[q].append(heatmap)
+                fake_norms.append(heatmap.mean())
+            if len(real_norms) >= num_samples and len(fake_norms) >= num_samples:
+                break
 
-    # Plot average heatmaps
-    fig, axes = plt.subplots(2, len(qualities), figsize=(len(qualities) * 4, 6))
-    fig.suptitle("Average Transition Heatmaps Under JPEG Compression", fontsize=14)
+        title = "Clean" if q is None else f"JPEG Q={q}"
+        axes[col].hist(real_norms, bins=25, alpha=0.6, color="blue", label="Real", density=True)
+        axes[col].hist(fake_norms, bins=25, alpha=0.6, color="red", label="Fake", density=True)
+        axes[col].set_title(title, fontsize=13)
+        axes[col].set_xlabel("Mean Transition Norm", fontsize=11)
+        axes[col].legend(fontsize=10)
 
-    for col, (q, label) in enumerate(zip(qualities, labels_list)):
-        if all_heatmaps_real[q]:
-            avg_real = np.mean(all_heatmaps_real[q], axis=0)
-            axes[0, col].imshow(avg_real, cmap="hot", interpolation="bilinear")
-        axes[0, col].set_title(f"Real - {label}", fontsize=10)
-        axes[0, col].axis("off")
-
-        if all_heatmaps_fake[q]:
-            avg_fake = np.mean(all_heatmaps_fake[q], axis=0)
-            axes[1, col].imshow(avg_fake, cmap="hot", interpolation="bilinear")
-        axes[1, col].set_title(f"Fake - {label}", fontsize=10)
-        axes[1, col].axis("off")
-
+    fig.suptitle("Transition Norm Distributions Under JPEG Compression", fontsize=14)
     plt.tight_layout()
-    plt.savefig(output_dir / "jpeg_transition_comparison.png", dpi=150, bbox_inches="tight")
+    plt.savefig(output_dir / "jpeg_norm_histogram.png", dpi=200, bbox_inches="tight")
     plt.close()
-    print(f"Saved JPEG comparison to {output_dir / 'jpeg_transition_comparison.png'}")
+    print(f"Saved to {output_dir / 'jpeg_norm_histogram.png'}")
 
 
-def visualize_tsne(model, dataset, output_dir, num_samples=500, device="cuda"):
-    """t-SNE of transition features: real vs fake."""
+def viz_tsne_fused(model, dataset, output_dir, num_samples=500, device="cuda"):
+    """t-SNE of FUSED features [CLS; transition], not transition alone."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    features = []
-    labels = []
+    features, labels = [], []
     model.eval()
-
-    with torch.no_grad():
-        for i in range(min(num_samples, len(dataset))):
-            img_tensor, label = dataset[i]
-            img_tensor = img_tensor.unsqueeze(0).to(device)
-
-            model.intermediate_features.clear()
-            cls_feat = model.visual(img_tensor)
-            if isinstance(cls_feat, tuple):
-                cls_feat = cls_feat[0]
-
-            B = 1
-            transitions = model._compute_transitions(B)
-
-            if model.patch_mode == "transformer":
-                cls_token = model.transition_cls.expand(B, -1, -1)
-                tokens = torch.cat([cls_token, transitions], dim=1)
-                aggregated = model.transition_aggregator(tokens)
-                feat = aggregated[:, 0, :].squeeze(0)
-            else:
-                feat = transitions.mean(dim=1).squeeze(0)
-
-            features.append(feat.cpu().numpy())
-            labels.append(label)
+    for i in range(min(num_samples, len(dataset))):
+        img_tensor, label = dataset[i]
+        feat = get_fused_feature(model, img_tensor, device)
+        features.append(feat)
+        labels.append(label)
 
     features = np.array(features)
     labels = np.array(labels)
@@ -189,19 +202,20 @@ def visualize_tsne(model, dataset, output_dir, num_samples=500, device="cuda"):
     tsne = TSNE(n_components=2, random_state=42, perplexity=30)
     embedded = tsne.fit_transform(features)
 
-    plt.figure(figsize=(8, 6))
-    real_mask = labels == 0
+    fig, ax = plt.subplots(figsize=(8, 6))
+    # Plot fake first so real doesn't cover it
     fake_mask = labels == 1
-    plt.scatter(embedded[real_mask, 0], embedded[real_mask, 1],
-                c="blue", alpha=0.5, s=10, label="Real")
-    plt.scatter(embedded[fake_mask, 0], embedded[fake_mask, 1],
-                c="red", alpha=0.5, s=10, label="Fake")
-    plt.legend(fontsize=12)
-    plt.title("t-SNE of Patch Transition Features", fontsize=14)
-    plt.axis("off")
-    plt.savefig(output_dir / "tsne_transitions.png", dpi=150, bbox_inches="tight")
+    real_mask = labels == 0
+    ax.scatter(embedded[fake_mask, 0], embedded[fake_mask, 1],
+               c="red", alpha=0.4, s=10, label="Fake")
+    ax.scatter(embedded[real_mask, 0], embedded[real_mask, 1],
+               c="blue", alpha=0.4, s=10, label="Real")
+    ax.legend(fontsize=12)
+    ax.set_title("t-SNE of Fused Features [CLS + Transition]", fontsize=14)
+    ax.axis("off")
+    plt.savefig(output_dir / "tsne_fused.png", dpi=200, bbox_inches="tight")
     plt.close()
-    print(f"Saved t-SNE to {output_dir / 'tsne_transitions.png'}")
+    print(f"Saved to {output_dir / 'tsne_fused.png'}")
 
 
 if __name__ == "__main__":
@@ -218,14 +232,17 @@ if __name__ == "__main__":
     dataset = GenImageDataset(args.data_dir, args.generator, split="val",
                                transform=val_transform, max_per_class=500)
 
-    print("Generating heatmaps...")
-    visualize_heatmaps(model, dataset, args.output_dir, device=args.device)
+    print("1/4 Difference heatmap...")
+    viz_difference_heatmap(model, dataset, args.output_dir, device=args.device)
 
-    print("Generating JPEG comparison...")
-    visualize_jpeg_robustness(model, GenImageDataset, args.data_dir,
-                               args.generator, args.output_dir, device=args.device)
+    print("2/4 Transition norm histogram...")
+    viz_transition_norm_histogram(model, dataset, args.output_dir, device=args.device)
 
-    print("Generating t-SNE...")
-    visualize_tsne(model, dataset, args.output_dir, device=args.device)
+    print("3/4 JPEG norm histogram...")
+    viz_jpeg_histogram(model, GenImageDataset, args.data_dir,
+                       args.generator, args.output_dir, device=args.device)
 
-    print("Done!")
+    print("4/4 t-SNE (fused features)...")
+    viz_tsne_fused(model, dataset, args.output_dir, device=args.device)
+
+    print("All visualizations done!")
