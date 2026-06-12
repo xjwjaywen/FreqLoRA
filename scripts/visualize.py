@@ -192,11 +192,24 @@ def viz_tsne_fused(model, dataset, output_dir, num_samples=500, device="cuda"):
 
     features, labels = [], []
     model.eval()
-    for i in range(min(num_samples, len(dataset))):
+    real_count, fake_count = 0, 0
+    half = num_samples // 2
+    for i in range(len(dataset)):
         img_tensor, label = dataset[i]
+        if label == 0 and real_count >= half:
+            continue
+        if label == 1 and fake_count >= half:
+            continue
         feat = get_fused_feature(model, img_tensor, device)
         features.append(feat)
         labels.append(label)
+        if label == 0:
+            real_count += 1
+        else:
+            fake_count += 1
+        if real_count >= half and fake_count >= half:
+            break
+    print(f"  Collected {real_count} real + {fake_count} fake for t-SNE")
 
     features = np.array(features)
     labels = np.array(labels)
