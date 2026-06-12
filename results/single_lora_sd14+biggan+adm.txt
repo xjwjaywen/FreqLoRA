@@ -1,31 +1,31 @@
 method: single_lora
 train_generator: sd14+biggan+adm
-best_val_acc: 0.9798
+best_val_acc: 0.9800
 
 === Cross-Generator ===
-adm: acc=0.9880 ap=0.9997 auc=0.9998
-biggan: acc=0.9878 ap=1.0000 auc=1.0000
-glide: acc=0.9732 ap=0.9951 auc=0.9939
-sd14: acc=0.9798 ap=0.9972 auc=0.9968
-sd15: acc=0.9430 ap=0.9894 auc=0.9908
-sd21: acc=0.9570 ap=0.9897 auc=0.9905
-sdv5: acc=0.9828 ap=0.9977 auc=0.9972
-vqdm: acc=0.6655 ap=0.7706 auc=0.7058
-wukong: acc=0.9575 ap=0.9904 auc=0.9881
+adm: acc=0.9918 ap=0.9998 auc=0.9998
+biggan: acc=0.9898 ap=1.0000 auc=1.0000
+glide: acc=0.9565 ap=0.9891 auc=0.9865
+sd14: acc=0.9800 ap=0.9955 auc=0.9942
+sd15: acc=0.9390 ap=0.9892 auc=0.9895
+sd21: acc=0.9620 ap=0.9923 auc=0.9924
+sdv5: acc=0.9858 ap=0.9967 auc=0.9954
+vqdm: acc=0.6438 ap=0.7294 auc=0.6465
+wukong: acc=0.9625 ap=0.9907 auc=0.9875
 
 === JPEG Robustness (train gen) ===
-Q=95: acc=0.9758 ap=0.9968 auc=0.9964
-Q=75: acc=0.9445 ap=0.9866 auc=0.9834
-Q=50: acc=0.8305 ap=0.9544 auc=0.9430
-Q=30: acc=0.7690 ap=0.9277 auc=0.9114
+Q=95: acc=0.9760 ap=0.9943 auc=0.9925
+Q=75: acc=0.9477 ap=0.9859 auc=0.9816
+Q=50: acc=0.8795 ap=0.9680 auc=0.9584
+Q=30: acc=0.7923 ap=0.9358 auc=0.9179
 
 === JPEG Robustness (unseen generators) ===
-glide_Q=95: acc=0.9567 ap=0.9910 auc=0.9891
-glide_Q=50: acc=0.8632 ap=0.9699 auc=0.9627
-glide_Q=30: acc=0.7765 ap=0.9367 auc=0.9224
-vqdm_Q=95: acc=0.6320 ap=0.7707 auc=0.7374
-vqdm_Q=50: acc=0.5717 ap=0.7142 auc=0.6742
-vqdm_Q=30: acc=0.5395 ap=0.6215 auc=0.5863
-wukong_Q=95: acc=0.9593 ap=0.9920 auc=0.9902
-wukong_Q=50: acc=0.7532 ap=0.9209 auc=0.9020
-wukong_Q=30: acc=0.6955 ap=0.8893 auc=0.8691
+glide_Q=95: acc=0.9405 ap=0.9841 auc=0.9800
+glide_Q=50: acc=0.8030 ap=0.9438 auc=0.9302
+glide_Q=30: acc=0.7010 ap=0.8817 auc=0.8581
+vqdm_Q=95: acc=0.6115 ap=0.7062 auc=0.6436
+vqdm_Q=50: acc=0.5477 ap=0.6275 auc=0.5622
+vqdm_Q=30: acc=0.5240 ap=0.5081 auc=0.4356
+wukong_Q=95: acc=0.9655 ap=0.9916 auc=0.9887
+wukong_Q=50: acc=0.8400 ap=0.9590 auc=0.9479
+wukong_Q=30: acc=0.7575 ap=0.9254 auc=0.9086
