@@ -210,15 +210,17 @@ Observations:
 
 ### 4.5 Efficiency
 
-| Method | Trainable Params | Overhead vs CLIP+LoRA | Inference |
+| Method | Trainable Params | Overhead | Inference (ms) |
 |--------|:---:|:---:|:---:|
-| CLIP Linear | ~512 | -- | baseline |
-| CLIP+LoRA | ~300K | -- | ~X ms |
-| CLS-LTD | ~300K + proj | +small | ~X ms |
-| PatchLTD-mp | ~300K + proj | +small | ~X ms |
-| PatchLTD | ~300K + proj + agg | +moderate | ~X ms |
+| CLIP Linear | 1,026 | -- | 2.8 |
+| CLIP+LoRA | 1,082,370 | -- | 4.8 |
+| CLS-LTD | 1,280,642 | +198K (18%) | 5.1 |
+| PatchLTD-mp | 1,280,642 | +198K (18%) | 5.2 |
+| PatchLTD | 1,280,642 | +198K (18%) | 5.4 |
 
-*(Fill in actual numbers from `python scripts/benchmark.py` output)*
+- PatchLTD adds only 198K trainable parameters over CLIP+LoRA (18% overhead), primarily from the transition projection and Transformer aggregator
+- Inference overhead is minimal: +0.6 ms per image (12.5% slower than CLIP+LoRA), negligible for deployment
+- CLS-LTD, PatchLTD-mp, and PatchLTD share the same parameter count — the Transformer aggregator's parameters are included in all variants (unused weights in meanpool/cls_only modes); the actual compute difference is in the forward pass
 
 ### 4.6 Analysis
 
