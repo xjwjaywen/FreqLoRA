@@ -185,7 +185,7 @@ def main():
 
     # --- Model ---
     lora_kwargs = dict(
-        lora_rank=lora_rank, lora_alpha=lora_rank,
+        lora_rank=lora_rank, lora_alpha=model_cfg["lora_alpha"],
         lora_target_modules=model_cfg["lora_target_modules"],
     )
     if method == "clip_linear":
