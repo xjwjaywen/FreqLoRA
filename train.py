@@ -166,7 +166,12 @@ def main():
                 train_datasets.append(ds)
         train_dataset = ConcatDataset(train_datasets)
         train_gen = "+".join(train_gens)
-        output_dir = Path(config["output"]["output_dir"]) / f"{method_tag}_{train_gen}"
+        suffix = f"{method_tag}_{train_gen}"
+        if selected_layers:
+            suffix += f"_L{''.join(str(l) for l in selected_layers)}"
+        if lora_rank != model_cfg["lora_rank"]:
+            suffix += f"_r{lora_rank}"
+        output_dir = Path(config["output"]["output_dir"]) / suffix
         output_dir.mkdir(parents=True, exist_ok=True)
         print(f"Multi-gen training: {train_gen}, total {len(train_dataset)} images")
     else:
