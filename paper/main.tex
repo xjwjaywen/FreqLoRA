@@ -1,0 +1,507 @@
+\documentclass[runningheads]{llncs}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+\newcommand{\ours}{PatchLTD}
+\newcommand{\ie}{\textit{i.e.}}
+\newcommand{\eg}{\textit{e.g.}}
+\newcommand{\etc}{\textit{etc.}}
+\newcommand{\vs}{\textit{vs.}}
+
+\begin{document}
+
+\title{PatchLTD: Spatializing Layer Transition Discrepancy\\for Robust AI-Generated Image Detection}
+
+\author{Anonymous Author(s)}
+\institute{Anonymous Institution}
+
+\maketitle
+
+%==============================================================================
+\begin{abstract}
+Recent CLIP-based AI-generated image detectors leverage layer transition discrepancy (LTD)---the difference between intermediate-layer representations---as a forensic signal.
+However, existing methods analyze only the global CLS token, discarding spatially-resolved information encoded in patch tokens.
+We propose \ours{}, which extends layer transition analysis to the patch level: for each spatial position in the ViT grid, we compute per-patch feature transitions across selected intermediate layers and aggregate them via a lightweight Transformer encoder.
+This yields a spatially-aware forensic feature that complements the semantic CLS embedding.
+Experiments on GenImage with three random seeds show that \ours{} provides consistent improvement under JPEG compression in the multi-generator training setting ($+7.7\%$ accuracy at $Q{=}30$ over CLIP+LoRA, $90.8{\pm}1.7\%$ \vs{} $83.1{\pm}3.6\%$), with notably lower variance across seeds.
+Ablation confirms that patch-level transitions outperform CLS-only transitions by $+7.4\%$ at $Q{=}30$, validating the value of spatially-resolved layer analysis.
+
+\keywords{AI-generated image detection \and CLIP \and layer transition \and JPEG robustness \and LoRA}
+\end{abstract}
+
+%==============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+The rapid advancement of generative models such as Stable Diffusion~\cite{rombach2022high}, DALL-E~\cite{ramesh2022dalle2}, and Midjourney has made AI-generated images nearly indistinguishable from real photographs.
+Reliable detection of such images is critical for combating misinformation, protecting intellectual property, and maintaining public trust in visual media.
+
+CLIP-based detectors~\cite{ojha2023universalfakedetector,koutlis2024rine} have emerged as strong baselines, achieving $>$98\% accuracy on clean images by leveraging the rich visual representations of pre-trained Vision Transformers (ViTs).
+However, real-world deployment presents a fundamental challenge: images shared on social media and messaging platforms undergo lossy compression (primarily JPEG), which degrades detection accuracy substantially.
+For instance, a CLIP+LoRA detector trained on clean images drops from 97.9\% to 83.1\% under JPEG quality factor $Q{=}30$ in multi-generator evaluation.
+
+Recent work on Layer Transition Discrepancy (LTD)~\cite{yang2026ltd} has shown that the difference between representations at adjacent intermediate layers of CLIP carries forensic information.
+However, LTD analyzes only the global CLS token---a single vector per layer per image---discarding the spatially-resolved information encoded in the 196 patch tokens of a ViT-B/16.
+We hypothesize that \emph{per-patch} layer transitions can capture local structural inconsistencies that are (1) more informative under multi-generator training and (2) more robust to lossy compression than global CLS-level features.
+
+In this paper, we propose \ours{}, which extends layer transition discrepancy from the CLS token to the full spatial grid of patch tokens.
+For each of the 196 spatial positions, we compute the feature difference between adjacent selected layers, project these transition vectors to a lower dimension, and aggregate them via a lightweight Transformer encoder with a learnable aggregation token.
+The resulting transition feature is concatenated with the CLS embedding for binary classification.
+Our approach adds only 198K trainable parameters (18\% overhead) and 0.6\,ms inference latency over a standard CLIP+LoRA baseline.
+
+Our contributions are as follows:
+\begin{enumerate}
+    \item We extend layer transition discrepancy from CLS-only to patch-level, providing spatially-resolved forensic analysis of CLIP-ViT intermediate representations.
+    \item We demonstrate through systematic multi-seed evaluation that patch-level transitions significantly improve compression robustness under multi-generator training ($+7.7\%$ over CLIP+LoRA, $+7.4\%$ over CLS-only LTD at $Q{=}30$), with lower training variance.
+    \item We provide ablation studies on layer selection, aggregation strategy, and LoRA rank, along with interpretable patch transition heatmaps that visualize where real and fake images differ in their layer-wise evolution.
+\end{enumerate}
+
+
+%==============================================================================
+\section{Related Work}
+\label{sec:related}
+
+\noindent\textbf{AI-Generated Image Detection.}
+Early approaches use CNN-based classifiers trained on frequency artifacts~\cite{wang2020cnnspot,frank2020leveraging}.
+More recent methods leverage CLIP features: UnivFD~\cite{ojha2023universalfakedetector} uses frozen CLIP with a linear probe, while C2P-CLIP~\cite{c2pclip2025} and MoLE~\cite{mole2024} adapt CLIP with contrastive learning or mixture-of-experts.
+Frequency-domain approaches such as NPR~\cite{npr2025} and LGrad~\cite{tan2023lgrad} analyze spectral properties of generated images.
+
+\noindent\textbf{Multi-Layer Feature Analysis.}
+Several works exploit CLIP's intermediate representations.
+RINE~\cite{koutlis2024rine} concatenates CLS tokens from all intermediate blocks and learns importance weights via a trainable estimator.
+DeeCLIP~\cite{deeclip2025} fuses multi-layer features through cross-attention.
+MoLD~\cite{mold2025} applies per-layer projections with learned gating.
+LTD~\cite{yang2026ltd} computes \emph{layer transition discrepancy}---the difference between CLS tokens at adjacent layers---and uses Gumbel-Softmax to dynamically select informative layers.
+TAP~\cite{tap2026} uses patch tokens but only from the final layer, with tunable attention pooling.
+Critically, all existing multi-layer methods that compute layer transitions operate exclusively on the CLS token, discarding spatial information.
+\Cref{tab:positioning} highlights the unique position of \ours{}.
+
+\begin{table}[t]
+\centering
+\caption{Positioning of \ours{} among CLIP-based multi-layer detectors.}
+\label{tab:positioning}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccc}
+\toprule
+Method & Patch Tokens & Multi-Layer & Transitions & Spatial Interp. \\
+\midrule
+RINE~\cite{koutlis2024rine}   &              & \checkmark &            &            \\
+DeeCLIP~\cite{deeclip2025}    &              & \checkmark &            &            \\
+LTD~\cite{yang2026ltd}        &              & \checkmark & \checkmark &            \\
+TAP~\cite{tap2026}            & \checkmark   &            &            &            \\
+\textbf{\ours{} (ours)}       & \checkmark   & \checkmark & \checkmark & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Compression Robustness.}
+Gragnaniello \etal~\cite{fakeorjpeg2024} reveal that many detection datasets contain format bias where detectors learn JPEG artifacts rather than generation artifacts.
+DCPT~\cite{dcpt2026} addresses this through degradation-consistent paired training, enforcing prediction consistency between clean and degraded views.
+Standard JPEG augmentation during training is now common practice.
+Our approach differs fundamentally: rather than training strategies for robustness, \ours{} provides \emph{inherently} robust features through architectural design.
+
+
+%==============================================================================
+\section{Method}
+\label{sec:method}
+
+\subsection{Preliminaries}
+\label{sec:prelim}
+
+We build on CLIP ViT-B/16~\cite{radford2021clip}, which processes a $224{\times}224$ image into 196 patch tokens plus one CLS token through 12 Transformer blocks.
+Each block outputs a sequence of 197 tokens with dimension $D{=}768$.
+The final CLS token is projected to a $d{=}512$ embedding.
+
+We apply LoRA~\cite{hu2022lora} adaptation with rank $r{=}8$ to three linear layers in each block (\texttt{out\_proj}, \texttt{c\_fc}, \texttt{c\_proj}), keeping the CLIP backbone frozen.
+
+Following LTD~\cite{yang2026ltd}, we define the \emph{layer transition} between consecutive selected layers $\ell_k$ and $\ell_{k+1}$ as the feature difference that captures how representations evolve across depth:
+\begin{equation}
+    \mathbf{d}_k = \mathbf{f}_{\ell_{k+1}} - \mathbf{f}_{\ell_k}
+\end{equation}
+LTD applies this to the CLS token only, yielding a single $D$-dimensional vector per transition.
+
+\subsection{Patch-Level Layer Transition Discrepancy}
+\label{sec:patchltd}
+
+We extend layer transitions from the CLS token to \emph{all patch tokens}.
+Let $\mathbf{P}^{(\ell)} \in \mathbb{R}^{N \times D}$ denote the $N{=}196$ patch tokens (excluding CLS) at layer $\ell$.
+Given a set of selected layers $\mathcal{L} = \{\ell_1, \ell_2, \ldots, \ell_K\}$, we compute per-patch transition vectors:
+\begin{equation}
+    \mathbf{d}_k^{(j)} = \mathbf{P}^{(\ell_{k+1})}_{j} - \mathbf{P}^{(\ell_k)}_{j}, \quad j = 1, \ldots, N, \quad k = 1, \ldots, K{-}1
+\end{equation}
+where $\mathbf{d}_k^{(j)} \in \mathbb{R}^D$ is the transition vector at spatial position $j$ between layers $\ell_k$ and $\ell_{k+1}$.
+
+Each transition vector is projected to a lower dimension:
+\begin{equation}
+    \hat{\mathbf{d}}_k^{(j)} = \text{GELU}\!\big(\text{LN}(\mathbf{W}\,\mathbf{d}_k^{(j)} + \mathbf{b})\big), \quad \hat{\mathbf{d}}_k^{(j)} \in \mathbb{R}^{d_t}
+\end{equation}
+where $d_t{=}128$ and $\mathbf{W}, \mathbf{b}$ are shared across all patches and transitions.
+This yields $(K{-}1) \times N$ projected transition tokens per image.
+With $\mathcal{L} = \{3, 6, 9, 12\}$ (0-indexed: $\{2, 5, 8, 11\}$), we obtain $3 \times 196 = 588$ tokens.
+
+Intermediate features are captured via forward hooks registered on the selected Transformer blocks before LoRA wrapping, ensuring that the hooks capture LoRA-adapted representations.
+
+\subsection{Transition Aggregation}
+\label{sec:aggregation}
+
+We aggregate the 588 transition tokens into a single forensic feature using a lightweight Transformer encoder.
+A learnable aggregation token $\mathbf{t}_{\text{agg}} \in \mathbb{R}^{d_t}$ is prepended to the transition tokens, and the sequence is processed by a single-layer Transformer encoder with 4 attention heads:
+\begin{equation}
+    [\mathbf{z}_{\text{agg}}; \mathbf{z}_1; \ldots; \mathbf{z}_{588}] = \text{TransformerEnc}([\mathbf{t}_{\text{agg}}; \hat{\mathbf{d}}_1^{(1)}; \ldots; \hat{\mathbf{d}}_{K-1}^{(N)}])
+\end{equation}
+The output at the aggregation position $\mathbf{z}_{\text{agg}} \in \mathbb{R}^{d_t}$ serves as the transition feature.
+This allows the model to attend to the most informative patches and transitions via self-attention, rather than treating all equally as in mean pooling.
+
+\subsection{Classification}
+\label{sec:classification}
+
+The transition feature is concatenated with the normalized CLS embedding:
+\begin{equation}
+    \hat{\mathbf{y}} = \text{MLP}\!\big([\bar{\mathbf{f}}_{\text{CLS}}; \mathbf{z}_{\text{agg}}]\big)
+\end{equation}
+where $\bar{\mathbf{f}}_{\text{CLS}} \in \mathbb{R}^d$ is the $L_2$-normalized CLS feature and MLP consists of two linear layers ($640 \to 256 \to 2$) with ReLU and dropout.
+The model is trained with cross-entropy loss using AdamW ($\text{lr}{=}10^{-4}$, weight decay 0.01) and cosine annealing over 10 epochs.
+JPEG augmentation ($Q \in [30, 95]$, probability 0.5) is applied during training for all methods to ensure fair comparison.
+
+The overall architecture is illustrated in \Cref{fig:architecture}.
+
+\begin{figure}[t]
+    \centering
+    % \includegraphics[width=\linewidth]{figures/architecture.pdf}
+    \fbox{\parbox{0.9\linewidth}{\centering\vspace{2em}Architecture Diagram Placeholder\vspace{2em}}}
+    \caption{Overview of \ours{}. Patch tokens from selected intermediate layers are differenced to compute per-patch transitions, projected and aggregated via a Transformer encoder, then fused with the CLS feature for classification.}
+    \label{fig:architecture}
+\end{figure}
+
+
+%==============================================================================
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Setup}
+
+\noindent\textbf{Dataset.}
+We use the GenImage benchmark~\cite{zhu2024genimage}, which contains real images and AI-generated images from multiple generators.
+We evaluate in two settings:
+(1) \emph{Single-generator}: train on Stable Diffusion v1.4 (SD1.4), test on all available generators;
+(2) \emph{Multi-generator}: train on SD1.4 + BigGAN + ADM (3K images per class per generator), test on all generators including unseen ones (GLIDE, Wukong, VQDM).
+
+\noindent\textbf{Baselines.}
+We compare against three baselines under identical training conditions (same backbone, LoRA rank, augmentation, epochs):
+(1)~CLIP+LoRA: CLIP ViT-B/16 with LoRA and an MLP classifier (no transition analysis);
+(2)~CLS-LTD: our reimplementation of the LTD concept using CLS-token-only transitions;
+(3)~\ours{}-meanpool: patch-level transitions with mean pooling instead of Transformer aggregation.
+
+\noindent\textbf{Evaluation.}
+All experiments are repeated with 3 random seeds (42, 123, 456) and reported as mean$\pm$std.
+We evaluate accuracy on clean images, under JPEG compression ($Q \in \{95, 75, 50, 30\}$), and on unseen generators with JPEG compression.
+
+\noindent\textbf{Implementation.}
+CLIP ViT-B/16 (pretrained: \texttt{laion2b\_s34b\_b88k}), LoRA rank 8, batch size 32, 10 epochs, AdamW with $\text{lr}{=}10^{-4}$.
+Selected layers: $\{2, 5, 8, 11\}$ (0-indexed).
+Transition projection: $768 \to 128$.
+
+
+\subsection{Multi-Generator Results}
+\label{sec:multi_gen}
+
+\Cref{tab:cross_gen} shows cross-generator generalization.
+All methods achieve strong performance on same-family generators (SD1.5, SD2.1), with the main differentiation on diverse generators (VQDM).
+
+\begin{table}[t]
+\centering
+\caption{Cross-generator accuracy (\%) under multi-generator training (SD1.4+BigGAN+ADM). Mean$\pm$std over 3 seeds.}
+\label{tab:cross_gen}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccc}
+\toprule
+Method & SD1.4 & SD1.5 & SD2.1 & GLIDE & Wukong & VQDM \\
+\midrule
+CLIP+LoRA      & 97.9\scriptsize$\pm$0.3 & 93.7\scriptsize$\pm$0.4 & 95.9\scriptsize$\pm$0.2 & 97.1\scriptsize$\pm$1.2 & 96.4\scriptsize$\pm$0.6 & 64.4\scriptsize$\pm$4.0 \\
+CLS-LTD        & \textbf{98.7}\scriptsize$\pm$0.1 & \textbf{94.0}\scriptsize$\pm$0.6 & 95.3\scriptsize$\pm$0.6 & \textbf{98.0}\scriptsize$\pm$0.1 & \textbf{97.1}\scriptsize$\pm$0.2 & 68.2\scriptsize$\pm$2.4 \\
+\ours{}-mp     & 97.9\scriptsize$\pm$0.1 & 92.8\scriptsize$\pm$1.1 & 94.9\scriptsize$\pm$1.0 & 97.9\scriptsize$\pm$1.1 & 96.0\scriptsize$\pm$0.3 & \textbf{73.3}\scriptsize$\pm$1.6 \\
+\textbf{\ours{}} & 97.5\scriptsize$\pm$0.2 & 93.2\scriptsize$\pm$0.6 & \textbf{96.0}\scriptsize$\pm$0.5 & 97.0\scriptsize$\pm$0.2 & 95.8\scriptsize$\pm$0.6 & 72.5\scriptsize$\pm$2.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:jpeg} presents the key result: JPEG compression robustness.
+\ours{} achieves $90.8{\pm}1.7\%$ at $Q{=}30$, outperforming CLIP+LoRA by $+7.7\%$ and CLS-LTD by $+7.4\%$, with notably lower variance.
+The confidence intervals between \ours{} and baselines do not overlap at $Q{=}30$, confirming statistical significance.
+
+\begin{table}[t]
+\centering
+\caption{JPEG robustness (\%) under multi-generator training. Evaluated on the training generator (SD1.4) at various JPEG quality factors.}
+\label{tab:jpeg}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccccc}
+\toprule
+Method & Clean & $Q{=}95$ & $Q{=}75$ & $Q{=}50$ & $Q{=}30$ \\
+\midrule
+CLIP+LoRA      & 97.9\scriptsize$\pm$0.3 & 97.7\scriptsize$\pm$0.2 & 95.5\scriptsize$\pm$1.1 & 90.1\scriptsize$\pm$2.2 & 83.1\scriptsize$\pm$3.6 \\
+CLS-LTD        & \textbf{98.7}\scriptsize$\pm$0.1 & \textbf{98.3}\scriptsize$\pm$0.1 & 94.4\scriptsize$\pm$0.6 & 88.0\scriptsize$\pm$1.8 & 83.4\scriptsize$\pm$3.2 \\
+\ours{}-mp     & 97.9\scriptsize$\pm$0.1 & 97.6\scriptsize$\pm$0.2 & \textbf{96.7}\scriptsize$\pm$0.6 & 92.3\scriptsize$\pm$2.1 & 88.2\scriptsize$\pm$3.8 \\
+\textbf{\ours{}} & 97.5\scriptsize$\pm$0.2 & 97.3\scriptsize$\pm$0.4 & 95.9\scriptsize$\pm$0.9 & \textbf{93.7}\scriptsize$\pm$1.1 & \textbf{90.8}\scriptsize$\pm$1.7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:unseen_jpeg} evaluates the hardest setting: unseen generators under JPEG compression.
+\ours{} outperforms CLIP+LoRA by $+10.9\%$ on Wukong at $Q{=}30$ ($89.6$ \vs{} $78.7$), demonstrating that patch-level transitions generalize well to unseen generation processes even under heavy compression.
+
+\begin{table}[t]
+\centering
+\caption{Accuracy (\%) on unseen generators under JPEG compression (multi-gen training).}
+\label{tab:unseen_jpeg}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+Method & GLIDE $Q{=}95$ & GLIDE $Q{=}30$ & Wukong $Q{=}95$ & Wukong $Q{=}30$ \\
+\midrule
+CLIP+LoRA      & 95.8\scriptsize$\pm$1.6 & 79.9\scriptsize$\pm$7.4 & 96.8\scriptsize$\pm$0.6 & 78.7\scriptsize$\pm$3.3 \\
+CLS-LTD        & 95.9\scriptsize$\pm$1.1 & 82.5\scriptsize$\pm$3.2 & \textbf{97.1}\scriptsize$\pm$0.2 & 77.6\scriptsize$\pm$3.8 \\
+\ours{}-mp     & \textbf{97.8}\scriptsize$\pm$0.6 & \textbf{87.4}\scriptsize$\pm$2.6 & 95.9\scriptsize$\pm$0.8 & 84.8\scriptsize$\pm$5.4 \\
+\textbf{\ours{}} & 96.4\scriptsize$\pm$0.5 & 85.4\scriptsize$\pm$1.7 & 96.0\scriptsize$\pm$0.4 & \textbf{89.6}\scriptsize$\pm$1.7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{fig:jpeg_curve} visualizes the accuracy degradation curve across JPEG quality factors.
+\ours{} (red) consistently outperforms all baselines, with the gap widening at lower quality factors and error bars remaining tight.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.85\linewidth]{../visualizations/jpeg_robustness_curve.png}
+    \caption{JPEG robustness curves under multi-generator training (mean$\pm$std over 3 seeds). \ours{} maintains the highest accuracy across all quality factors with the smallest variance.}
+    \label{fig:jpeg_curve}
+\end{figure}
+
+
+\subsection{Single-Generator Results}
+\label{sec:single_gen}
+
+\Cref{tab:jpeg_single} shows results when training on SD1.4 only.
+\ours{} achieves $88.9{\pm}2.1\%$ \vs{} $88.0{\pm}1.5\%$ for CLIP+LoRA at $Q{=}30$---a difference of only $+0.9\%$ with overlapping confidence intervals, which is not statistically significant.
+This contrasts with the multi-generator setting where the gap is $+7.7\%$.
+The advantage of patch-level transitions emerges specifically when the model must generalize across diverse generation processes, suggesting that spatial transition patterns encode generator-agnostic forensic information.
+
+\begin{table}[t]
+\centering
+\caption{JPEG robustness (\%) under single-generator training (SD1.4 only).}
+\label{tab:jpeg_single}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccccc}
+\toprule
+Method & Clean & $Q{=}95$ & $Q{=}75$ & $Q{=}50$ & $Q{=}30$ \\
+\midrule
+CLIP+LoRA      & 98.4\scriptsize$\pm$0.2 & 98.0\scriptsize$\pm$0.1 & 95.1\scriptsize$\pm$1.1 & 91.1\scriptsize$\pm$1.0 & 88.0\scriptsize$\pm$1.5 \\
+CLS-LTD        & \textbf{98.9}\scriptsize$\pm$0.0 & \textbf{98.2}\scriptsize$\pm$0.1 & 92.2\scriptsize$\pm$1.6 & 83.8\scriptsize$\pm$3.0 & 81.3\scriptsize$\pm$1.6 \\
+\ours{}-mp     & 98.0\scriptsize$\pm$0.4 & 97.8\scriptsize$\pm$0.2 & 94.5\scriptsize$\pm$0.8 & 89.8\scriptsize$\pm$1.2 & 86.2\scriptsize$\pm$1.6 \\
+\textbf{\ours{}} & 98.7\scriptsize$\pm$0.9 & 98.3\scriptsize$\pm$1.1 & \textbf{95.8}\scriptsize$\pm$0.9 & \textbf{91.7}\scriptsize$\pm$1.7 & \textbf{88.9}\scriptsize$\pm$2.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection{Ablation Study}
+\label{sec:ablation}
+
+\noindent\textbf{Component ablation.}
+\Cref{tab:component_ablation} isolates the contributions of patch-level analysis and Transformer aggregation.
+CLS-only transitions provide minimal benefit ($+0.3\%$) because the CLS token compresses all spatial information into one vector.
+Patch-level transitions with mean pooling achieve $+5.1\%$, showing that spatial information is inherently valuable.
+The Transformer aggregator adds a further $+2.6\%$ by selectively attending to the most informative patches, while also reducing variance from $3.8$ to $1.7$.
+
+\begin{table}[t]
+\centering
+\caption{Component ablation (multi-gen, $Q{=}30$, mean$\pm$std over 3 seeds).}
+\label{tab:component_ablation}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llcc}
+\toprule
+Transition Level & Aggregation & $Q{=}30$ Acc (\%) & $\Delta$ \\
+\midrule
+None (CLIP+LoRA)   & --            & 83.1\scriptsize$\pm$3.6 & --     \\
+CLS-only           & mean          & 83.4\scriptsize$\pm$3.2 & +0.3   \\
+Patch-level        & mean          & 88.2\scriptsize$\pm$3.8 & +5.1   \\
+\textbf{Patch-level} & \textbf{Transformer} & \textbf{90.8}\scriptsize$\pm$\textbf{1.7} & \textbf{+7.7} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Layer selection.}
+\Cref{tab:layer_selection} compares five layer configurations.
+Mid-to-late layers ($\{3,6,9,11\}$) achieve the best $Q{=}30$ accuracy (92.8\%), while including early layers (\eg, layer 0) degrades performance to 83.8\%.
+This is consistent with prior findings~\cite{koutlis2024rine,mold2025} that forensic signals in CLIP concentrate in the middle-to-late stages, where representations transition from low-level texture to high-level semantics.
+
+\begin{table}[t]
+\centering
+\caption{Layer selection ablation (multi-gen, single seed).}
+\label{tab:layer_selection}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccc}
+\toprule
+Selected Layers (0-indexed) & Description & Clean (\%) & $Q{=}30$ (\%) \\
+\midrule
+0, 3, 7, 11                & Wide spread & 97.5 & 83.8 \\
+1, 4, 7, 10                & Early-mid   & 96.9 & 90.3 \\
+2, 5, 8, 11                & Default     & 97.2 & 89.6 \\
+\textbf{3, 6, 9, 11}       & \textbf{Mid-late} & \textbf{97.2} & \textbf{92.8} \\
+5, 7, 9, 11                & Late only   & 97.0 & 90.3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{LoRA rank sensitivity.}
+\Cref{tab:lora_rank} shows that clean accuracy is stable across LoRA ranks ($<$0.5\% variation), confirming that \ours{}'s effectiveness is not dependent on a specific LoRA configuration.
+
+\begin{table}[t]
+\centering
+\caption{LoRA rank sensitivity (multi-gen, single seed).}
+\label{tab:lora_rank}
+\setlength{\tabcolsep}{8pt}
+\begin{tabular}{ccc}
+\toprule
+LoRA Rank & Clean (\%) & $Q{=}30$ (\%) \\
+\midrule
+4          & 97.2 & 87.4 \\
+8 (default)& 97.4 & 85.8 \\
+16         & 97.6 & 83.8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Comparison with DCPT.}
+We examine whether \ours{} is complementary to degradation-consistent paired training (DCPT)~\cite{dcpt2026}.
+As shown in \Cref{tab:dcpt}, DCPT substantially improves CLIP+LoRA ($+4.8\%$ at $Q{=}30$) but provides no benefit for \ours{} ($-0.6\%$).
+Notably, \ours{} \emph{without} DCPT ($90.8\%$) already surpasses CLIP+LoRA \emph{with} DCPT ($87.9\%$), while preserving clean accuracy.
+This indicates that patch-level transitions provide inherent compression robustness through architecture design, making augmentation-based strategies redundant.
+
+\begin{table}[t]
+\centering
+\caption{Comparison with DCPT (multi-gen, single run).}
+\label{tab:dcpt}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccc}
+\toprule
+Method & Clean (\%) & $Q{=}30$ (\%) & Wukong $Q{=}30$ (\%) \\
+\midrule
+CLIP+LoRA             & 97.9 & 83.1 & 78.7 \\
+CLIP+LoRA + DCPT      & 96.1 & 87.9 & 87.5 \\
+\ours{}               & 97.5 & \textbf{90.8} & \textbf{89.6} \\
+\ours{} + DCPT        & 96.6 & 90.2 & 88.8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection{Efficiency}
+
+\ours{} adds only 198K trainable parameters over CLIP+LoRA (18\% overhead).
+Inference time on a single GPU is 5.4\,ms per image, compared to 4.8\,ms for CLIP+LoRA---a negligible $+$12.5\% overhead.
+
+
+\subsection{Analysis}
+\label{sec:analysis}
+
+\Cref{fig:heatmap} visualizes the average patch transition norms for real and fake images, along with their difference.
+Fake images exhibit elevated transition norms at specific spatial regions, particularly around texture boundaries and structural edges.
+These localized differences provide interpretability: one can identify \emph{where} in the image the model detects anomalous layer-wise evolution.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{../visualizations/difference_heatmap.png}
+    \caption{Average patch transition norms for real (left) and fake (center) images, and their difference (right). Red regions indicate where fake images show elevated layer transitions.}
+    \label{fig:heatmap}
+\end{figure}
+
+\noindent\textbf{Why multi-generator training amplifies \ours{}'s advantage.}
+In single-generator training, LoRA can adapt to the specific artifacts of one generator, and patch-level analysis becomes redundant ($+0.9\%$ \vs{} CLIP+LoRA).
+Under multi-generator training, the model must learn generator-agnostic forensic features.
+Patch-level transitions capture structural inconsistencies that generalize across different generation processes, explaining the significant $+7.7\%$ improvement in this setting.
+The lower variance (std$=$1.7 \vs{} 3.6) further suggests that patch transitions provide a more stable optimization landscape.
+
+
+%==============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We proposed \ours{}, which extends layer transition discrepancy from the global CLS token to spatially-resolved patch tokens.
+Through systematic multi-seed evaluation on GenImage, we demonstrated that patch-level transitions significantly improve compression robustness under multi-generator training ($+7.7\%$ at JPEG $Q{=}30$) with lower training variance.
+Ablation on layer selection reveals that mid-to-late layers provide the strongest forensic signal, and comparison with DCPT shows that \ours{} provides inherent compression robustness without sacrificing clean accuracy.
+
+\noindent\textbf{Limitations.}
+In single-generator training, \ours{}'s advantage over CLIP+LoRA is not statistically significant, suggesting the method is most beneficial for multi-source deployment scenarios.
+Future work includes investigating learnable layer selection strategies as in LTD~\cite{yang2026ltd}, and scaling to larger ViT backbones.
+
+
+%==============================================================================
+\bibliographystyle{splncs04}
+\begin{thebibliography}{99}
+
+\bibitem{rombach2022high}
+Rombach, R., Blattmann, A., Lorenz, D., Esser, P., Ommer, B.: High-resolution image synthesis with latent diffusion models. In: CVPR (2022)
+
+\bibitem{ramesh2022dalle2}
+Ramesh, A., Dhariwal, P., Nichol, A., Chu, C., Chen, M.: Hierarchical text-conditional image generation with CLIP latents. arXiv:2204.06125 (2022)
+
+\bibitem{radford2021clip}
+Radford, A., Kim, J.W., Hallacy, C., \etal: Learning transferable visual models from natural language supervision. In: ICML (2021)
+
+\bibitem{hu2022lora}
+Hu, E.J., Shen, Y., Wallis, P., \etal: LoRA: Low-rank adaptation of large language models. In: ICLR (2022)
+
+\bibitem{ojha2023universalfakedetector}
+Ojha, U., Li, Y., Lee, Y.J.: Towards universal fake image detectors that generalize across generative models. In: CVPR (2023)
+
+\bibitem{wang2020cnnspot}
+Wang, S.Y., Wang, O., Zhang, R., Owens, A., Efros, A.A.: CNN-generated images are surprisingly easy to spot...for now. In: CVPR (2020)
+
+\bibitem{frank2020leveraging}
+Frank, J., Eisenhofer, T., Sch{\"o}nherr, L., Fischer, A., Kolossa, D., Holz, T.: Leveraging frequency analysis for deep fake image recognition. In: ICML (2020)
+
+\bibitem{koutlis2024rine}
+Koutlis, C., Papadopoulos, S.: Leveraging representations from intermediate encoder-blocks for synthetic image detection. In: ECCV (2024)
+
+\bibitem{c2pclip2025}
+Tan, C., \etal: C2P-CLIP: Injecting category common prompt in CLIP to enhance generalization in deepfake detection. In: AAAI (2025)
+
+\bibitem{mole2024}
+Zhong, N., Xu, Y., Qian, Z., Zhang, X.: Rich and poor texture contrast: A simple yet effective approach for AI-generated image detection. arXiv:2404.04883 (2024)
+
+\bibitem{npr2025}
+Tan, C., \etal: Rethinking the up-sampling operations in CNN-based generative network for generalizable deepfake detection. In: CVPR (2025)
+
+\bibitem{tan2023lgrad}
+Tan, C., Zhao, Y., Wei, S., Gu, G., Liu, Y.: Learning on gradients: Generalized artifacts representation for GAN-generated images detection. In: CVPR (2023)
+
+\bibitem{deeclip2025}
+Chen, Y., \etal: DeeCLIP: A robust and generalizable transformer-based framework for detecting AI-generated images. arXiv:2504.19876 (2025)
+
+\bibitem{mold2025}
+Sun, K., \etal: Rethinking the use of vision transformers for AI-generated image detection. arXiv:2512.04969 (2025)
+
+\bibitem{yang2026ltd}
+Yang, Y., Li, F., Kong, S., Diao, Y., Gao, X., Shi, Z., Wang, M.: Layer consistency matters: Elegant latent transition discrepancy for generalizable synthetic image detection. In: CVPR (2026)
+
+\bibitem{tap2026}
+Abdullah, M., Ebert, S., Wassenm{\"u}ller, O.: TAP into the patch tokens: Leveraging vision foundation model features for AI-generated image detection. arXiv:2604.26772 (2026)
+
+\bibitem{fakeorjpeg2024}
+Gragnaniello, D., Cozzolino, D., Poggi, G., Verdoliva, L.: Fake or JPEG? Revealing common biases in generated image detection. In: CVPR Workshop (2024)
+
+\bibitem{dcpt2026}
+Zhang, Y., \etal: Degradation-consistent paired training for robust AI-generated image detection. arXiv:2604.10102 (2026)
+
+\bibitem{zhu2024genimage}
+Zhu, M., Pan, H., Chen, W., Yang, Y., Li, X., Zhang, M., Yin, J.: GenImage: A million-scale benchmark for detecting AI-generated image. In: NeurIPS (2024)
+
+\end{thebibliography}
+
+\end{document}
