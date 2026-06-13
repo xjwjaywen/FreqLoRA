@@ -1,0 +1,76 @@
+% Architecture diagram for PatchLTD - include via \input{figures/architecture.tex}
+% Requires: \usepackage{tikz}, \usetikzlibrary{positioning, arrows.meta, decorations.pathreplacing}
+\begin{tikzpicture}[
+    >=Stealth,
+    node distance=0.5cm,
+    block/.style={draw, rounded corners=2pt, minimum height=0.6cm, minimum width=1.5cm, align=center, font=\scriptsize},
+    sblock/.style={draw, rounded corners=2pt, minimum height=0.45cm, minimum width=1.0cm, align=center, font=\tiny},
+    arrow/.style={->, thick},
+]
+
+% Input
+\node[block, fill=black!5] (input) {Image\\[-1pt]$224{\times}224$};
+
+% CLIP backbone
+\node[block, fill=blue!10, right=0.7cm of input, minimum width=1.8cm, minimum height=2.8cm] (vit) {};
+\node[font=\scriptsize\bfseries, anchor=north] at ([yshift=-2pt]vit.north) {CLIP ViT-B/16};
+\node[font=\tiny] at (vit.center) {+ LoRA ($r{=}8$)};
+
+\draw[arrow] (input) -- (vit);
+
+% Hooked layers
+\node[sblock, fill=red!10, right=0.2cm of vit.east, anchor=west, yshift=0.8cm] (h1) {L3};
+\node[sblock, fill=red!10, below=0.08cm of h1] (h2) {L6};
+\node[sblock, fill=red!10, below=0.08cm of h2] (h3) {L9};
+\node[sblock, fill=red!10, below=0.08cm of h3] (h4) {L12};
+
+\draw[arrow, thin] (vit.east |- h1) -- (h1);
+\draw[arrow, thin] (vit.east |- h2) -- (h2);
+\draw[arrow, thin] (vit.east |- h3) -- (h3);
+\draw[arrow, thin] (vit.east |- h4) -- (h4);
+
+% CLS
+\node[sblock, fill=blue!20, right=0.2cm of vit.east, anchor=west, yshift=-1.0cm] (cls) {CLS\\[-1pt]$512$d};
+\draw[arrow, thin] (vit.east |- cls) -- (cls);
+
+% Patch transition block
+\node[block, fill=green!12, right=1.0cm of h2, yshift=-0.1cm, minimum width=1.6cm, minimum height=1.2cm] (diff) {};
+\node[font=\scriptsize\bfseries] at ([yshift=0.15cm]diff.center) {$\Delta$};
+\node[font=\tiny] at ([yshift=-0.15cm]diff.center) {$p_{k+1}^j - p_k^j$};
+
+\draw[arrow, thin] (h1.east) -- ++(0.15,0) |- ([yshift=0.2cm]diff.west);
+\draw[arrow, thin] (h2.east) -- (diff.west);
+\draw[arrow, thin] (h3.east) -- ++(0.15,0) |- ([yshift=-0.2cm]diff.west);
+\draw[arrow, thin] (h4.east) -- ++(0.25,0) |- ([yshift=-0.4cm]diff.west);
+
+% Project
+\node[sblock, fill=green!20, right=0.5cm of diff] (proj) {Project\\[-1pt]$768{\to}128$};
+\draw[arrow] (diff) -- (proj);
+
+% Transformer agg
+\node[block, fill=green!30, right=0.5cm of proj] (agg) {Transformer\\[-1pt]Encoder};
+\draw[arrow] (proj) -- node[above, font=\tiny] {588} (agg);
+
+% Transition feat
+\node[sblock, fill=green!40, right=0.5cm of agg] (tf) {$\mathbf{z}_\text{agg}$\\[-1pt]$128$d};
+\draw[arrow] (agg) -- (tf);
+
+% Concat
+\node[block, fill=orange!15, below=0.8cm of tf] (cat) {$[\bar{\mathbf{f}}_\text{CLS};\,\mathbf{z}_\text{agg}]$};
+\draw[arrow] (tf) -- (cat);
+\draw[arrow] (cls.east) -- ++(2.5,0) |- (cat.west);
+
+% MLP
+\node[sblock, fill=orange!25, right=0.5cm of cat] (mlp) {MLP\\[-1pt]$640{\to}2$};
+\draw[arrow] (cat) -- (mlp);
+
+% Output
+\node[block, fill=black!5, right=0.5cm of mlp] (out) {Real/\\[-1pt]Fake};
+\draw[arrow] (mlp) -- (out);
+
+% Brace
+\draw[decorate, decoration={brace, amplitude=3pt, raise=1pt}]
+    (h1.north east) -- (h4.south east)
+    node[midway, right=5pt, font=\tiny, align=left] {patch\\tokens};
+
+\end{tikzpicture}

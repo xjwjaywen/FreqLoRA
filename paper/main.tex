@@ -7,6 +7,8 @@
 \usepackage{xcolor}
 \usepackage{hyperref}
 \usepackage{cleveref}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, decorations.pathreplacing}
 
 \newcommand{\ours}{PatchLTD}
 \newcommand{\ie}{\textit{i.e.}}
@@ -173,9 +175,8 @@ The overall architecture is illustrated in \Cref{fig:architecture}.
 
 \begin{figure}[t]
     \centering
-    % \includegraphics[width=\linewidth]{figures/architecture.pdf}
-    \fbox{\parbox{0.9\linewidth}{\centering\vspace{2em}Architecture Diagram Placeholder\vspace{2em}}}
-    \caption{Overview of \ours{}. Patch tokens from selected intermediate layers are differenced to compute per-patch transitions, projected and aggregated via a Transformer encoder, then fused with the CLS feature for classification.}
+    \input{figures/architecture.tex}
+    \caption{Overview of \ours{}. Patch tokens from selected intermediate layers (3, 6, 9, 12) are differenced to compute per-patch transition vectors. These are projected to 128-d, aggregated via a lightweight Transformer encoder, and concatenated with the CLS feature for binary classification.}
     \label{fig:architecture}
 \end{figure}
 
@@ -209,6 +210,32 @@ Transition projection: $768 \to 128$.
 Images are normalized with ImageNet statistics ($\mu{=}[0.485, 0.456, 0.406]$, $\sigma{=}[0.229, 0.224, 0.225]$); all methods use identical preprocessing for fair comparison.
 Seeds are set for \texttt{torch}, \texttt{numpy}, \texttt{random}, and \texttt{cudnn} to ensure reproducibility.
 
+
+\subsection{Comparison with Published Methods}
+\label{sec:published}
+
+\Cref{tab:published} places our results in the context of published methods.
+Since prior works use different backbones (ViT-L/14) and training sets (ProGAN), direct comparison is not strictly fair; we include these numbers for reference only.
+All our methods use the smaller ViT-B/16 backbone.
+Despite this, \ours{} with multi-generator training achieves competitive cross-generator accuracy.
+
+\begin{table}[t]
+\centering
+\caption{Comparison with published methods on GenImage. $\dagger$: results cited from original papers using ViT-L/14 trained on ProGAN (different protocol). Our methods use ViT-B/16 trained on SD1.4+BigGAN+ADM.}
+\label{tab:published}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lccccccc}
+\toprule
+Method & Backbone & SD1.4 & SD1.5 & BigGAN & GLIDE & Wukong & Mean \\
+\midrule
+CNNSpot$^\dagger$~\cite{wang2020cnnspot}    & ResNet-50 & 72.0 & 65.7 & 70.2 & 63.5 & 65.8 & 67.4 \\
+UnivFD$^\dagger$~\cite{ojha2023universalfakedetector} & ViT-L/14  & 82.5 & 78.8 & 75.4 & 67.3 & 72.1 & 75.2 \\
+\midrule
+CLIP+LoRA (ours)   & ViT-B/16  & 97.9 & 93.7 & 99.0 & 97.1 & 96.4 & 96.8 \\
+\textbf{\ours{} (ours)} & ViT-B/16 & 97.5 & 93.2 & 99.2 & 97.0 & 95.8 & 96.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Multi-Generator Results}
 \label{sec:multi_gen}
