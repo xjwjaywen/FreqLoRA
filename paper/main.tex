@@ -289,9 +289,9 @@ CLS-LTD        & 95.9\scriptsize$\pm$1.1 & 82.5\scriptsize$\pm$3.2 & \textbf{97.
 \label{sec:single_gen}
 
 \Cref{tab:jpeg_single} shows results when training on SD1.4 only.
-\ours{} achieves $88.9{\pm}2.1\%$ \vs{} $88.0{\pm}1.5\%$ for CLIP+LoRA at $Q{=}30$---a difference of only $+0.9\%$ with overlapping confidence intervals, which is not statistically significant.
-This contrasts with the multi-generator setting where the gap is $+7.7\%$.
-The advantage of patch-level transitions emerges specifically when the model must generalize across diverse generation processes, suggesting that spatial transition patterns encode generator-agnostic forensic information.
+\ours{} achieves $86.2{\pm}2.7\%$ \vs{} $88.0{\pm}1.5\%$ for CLIP+LoRA at $Q{=}30$---the difference is not statistically significant, and CLIP+LoRA is nominally higher.
+This contrasts with the multi-generator setting where \ours{} leads by $+7.7\%$.
+The advantage of patch-level transitions emerges specifically when the model must generalize across diverse generation processes, suggesting that spatial transition patterns encode generator-agnostic forensic information that is redundant when training on a single generator.
 
 \begin{table}[t]
 \centering
@@ -302,10 +302,10 @@ The advantage of patch-level transitions emerges specifically when the model mus
 \toprule
 Method & Clean & $Q{=}95$ & $Q{=}75$ & $Q{=}50$ & $Q{=}30$ \\
 \midrule
-CLIP+LoRA      & 98.4\scriptsize$\pm$0.2 & 98.0\scriptsize$\pm$0.1 & 95.1\scriptsize$\pm$1.1 & 91.1\scriptsize$\pm$1.0 & 88.0\scriptsize$\pm$1.5 \\
-CLS-LTD        & \textbf{98.9}\scriptsize$\pm$0.0 & \textbf{98.2}\scriptsize$\pm$0.1 & 92.2\scriptsize$\pm$1.6 & 83.8\scriptsize$\pm$3.0 & 81.3\scriptsize$\pm$1.6 \\
+CLIP+LoRA      & \textbf{98.4}\scriptsize$\pm$0.2 & \textbf{98.0}\scriptsize$\pm$0.1 & \textbf{95.1}\scriptsize$\pm$1.1 & \textbf{91.1}\scriptsize$\pm$1.0 & \textbf{88.0}\scriptsize$\pm$1.5 \\
+CLS-LTD        & 98.9\scriptsize$\pm$0.0 & 98.2\scriptsize$\pm$0.1 & 92.2\scriptsize$\pm$1.6 & 83.8\scriptsize$\pm$3.0 & 81.3\scriptsize$\pm$1.6 \\
 \ours{}-mp     & 98.0\scriptsize$\pm$0.4 & 97.8\scriptsize$\pm$0.2 & 94.5\scriptsize$\pm$0.8 & 89.8\scriptsize$\pm$1.2 & 86.2\scriptsize$\pm$1.6 \\
-\textbf{\ours{}} & 98.7\scriptsize$\pm$0.9 & 98.3\scriptsize$\pm$1.1 & \textbf{95.8}\scriptsize$\pm$0.9 & \textbf{91.7}\scriptsize$\pm$1.7 & \textbf{88.9}\scriptsize$\pm$2.1 \\
+\ours{}        & 97.9\scriptsize$\pm$0.2 & 97.4\scriptsize$\pm$0.2 & 94.7\scriptsize$\pm$0.7 & 90.0\scriptsize$\pm$1.6 & 86.2\scriptsize$\pm$2.7 \\
 \bottomrule
 \end{tabular}
 \end{table}

@@ -149,9 +149,9 @@ Recent CLIP-based AI-generated image detectors leverage layer transition discrep
 | CLIP+LoRA | 98.4±0.2 | 98.0±0.1 | 95.1±1.1 | 91.1±1.0 | 88.0±1.5 |
 | CLS-LTD | 98.9±0.0 | 98.2±0.1 | 92.2±1.6 | 83.8±3.0 | 81.3±1.6 |
 | PatchLTD-mp | 98.0±0.4 | 97.8±0.2 | 94.5±0.8 | 89.8±1.2 | 86.2±1.6 |
-| **PatchLTD** | 98.7±0.9 | 98.3±1.1 | 95.8±0.9 | 91.7±1.7 | 88.9±2.1 |
+| PatchLTD | 97.9±0.2 | 97.4±0.2 | 94.7±0.7 | 90.0±1.6 | 86.2±2.7 |
 
-Note: In single-gen, PatchLTD vs CLIP+LoRA at Q=30 is +0.9% (not statistically significant). The advantage of PatchLTD emerges specifically under multi-generator training, suggesting that patch-level transitions become more discriminative when the model must generalize across diverse generation processes.
+Note: In single-gen, PatchLTD vs CLIP+LoRA at Q=30 is -1.8% (not significant, CLIP+LoRA nominally higher). The advantage of PatchLTD emerges specifically under multi-generator training, suggesting that patch-level transitions become more discriminative when the model must generalize across diverse generation processes.
 
 ### 4.4 Ablation Study
 
