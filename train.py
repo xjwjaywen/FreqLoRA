@@ -88,6 +88,10 @@ def main():
                         help="Comma-separated train degradations, e.g. jpeg,blur,downsample,webp")
     parser.add_argument("--extra_degradation_eval", action="store_true",
                         help="Evaluate blur/downsample/WebP robustness after training")
+    parser.add_argument("--selected_layers", type=str, default=None,
+                        help="Comma-separated 0-indexed layer indices, e.g. '2,5,8,11'")
+    parser.add_argument("--lora_rank", type=int, default=None,
+                        help="Override LoRA rank")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -110,6 +114,10 @@ def main():
         args.degradations if args.degradations is not None else train_cfg.get("degradations")
     )
     method_tag = f"{method}_dcpt" if consistency_enabled else method
+    lora_rank = args.lora_rank if args.lora_rank is not None else model_cfg["lora_rank"]
+    selected_layers = None
+    if args.selected_layers:
+        selected_layers = [int(x) for x in args.selected_layers.split(",")]
 
     # Set seed
     seed = args.seed if args.seed is not None else train_cfg["seed"]
@@ -117,11 +125,20 @@ def main():
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
 
-    output_dir = Path(config["output"]["output_dir"]) / f"{method_tag}_{train_gen}"
+    suffix = f"{method_tag}_{train_gen}"
+    if selected_layers:
+        suffix += f"_L{''.join(str(l) for l in selected_layers)}"
+    if lora_rank != model_cfg["lora_rank"]:
+        suffix += f"_r{lora_rank}"
+    output_dir = Path(config["output"]["output_dir"]) / suffix
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"\n{'='*60}")
     print(f"PatchLTD | method={method_tag} | train_gen={train_gen}")
+    if selected_layers:
+        print(f"  selected_layers={selected_layers}")
+    if lora_rank != model_cfg["lora_rank"]:
+        print(f"  lora_rank={lora_rank}")
     print(f"{'='*60}")
     if consistency_enabled:
         print(
@@ -167,34 +184,30 @@ def main():
                              shuffle=False, num_workers=4, pin_memory=True)
 
     # --- Model ---
+    lora_kwargs = dict(
+        lora_rank=lora_rank, lora_alpha=lora_rank,
+        lora_target_modules=model_cfg["lora_target_modules"],
+    )
     if method == "clip_linear":
         model = CLIPLinearProbe(model_cfg["clip_model"], model_cfg["clip_pretrained"])
     elif method == "single_lora":
         model = SingleViewLoRA(
-            model_cfg["clip_model"], model_cfg["clip_pretrained"],
-            lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
-            lora_target_modules=model_cfg["lora_target_modules"],
+            model_cfg["clip_model"], model_cfg["clip_pretrained"], **lora_kwargs,
         )
     elif method == "patchltd_meanpool":
         model = PatchLTDDetector(
-            model_cfg["clip_model"], model_cfg["clip_pretrained"],
-            lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
-            lora_target_modules=model_cfg["lora_target_modules"],
-            patch_mode="meanpool",
+            model_cfg["clip_model"], model_cfg["clip_pretrained"], **lora_kwargs,
+            patch_mode="meanpool", selected_layers=selected_layers,
         )
     elif method == "cls_ltd":
         model = PatchLTDDetector(
-            model_cfg["clip_model"], model_cfg["clip_pretrained"],
-            lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
-            lora_target_modules=model_cfg["lora_target_modules"],
-            patch_mode="cls_only",
+            model_cfg["clip_model"], model_cfg["clip_pretrained"], **lora_kwargs,
+            patch_mode="cls_only", selected_layers=selected_layers,
         )
     else:  # patchltd or patchltd_dcpt
         model = PatchLTDDetector(
-            model_cfg["clip_model"], model_cfg["clip_pretrained"],
-            lora_rank=model_cfg["lora_rank"], lora_alpha=model_cfg["lora_alpha"],
-            lora_target_modules=model_cfg["lora_target_modules"],
-            patch_mode="transformer",
+            model_cfg["clip_model"], model_cfg["clip_pretrained"], **lora_kwargs,
+            patch_mode="transformer", selected_layers=selected_layers,
         )
 
     model = model.to(args.device)
