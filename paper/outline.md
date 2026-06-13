@@ -195,7 +195,17 @@ Observations:
 - JPEG robustness slightly favors smaller ranks, suggesting that heavier LoRA adaptation may overfit to clean-image features that are less robust to compression
 - PatchLTD's patch-level transition mechanism is not dependent on a specific LoRA configuration
 
-#### Table 8: Comparison with DCPT (multi-gen, single run)
+#### Table 8: No JPEG Augmentation (multi-gen, single seed) — KEY EVIDENCE
+| Method | Q=30 Acc | Q=30 AP | Wukong Q=30 Acc | Wukong Q=30 AP |
+|--------|:---:|:---:|:---:|:---:|
+| CLIP+LoRA | 51.5% | 0.532 | 50.8% | 0.486 |
+| CLS-LTD | 54.3% | 0.750 | 52.0% | 0.683 |
+| PatchLTD-mp | 52.7% | 0.894 | 51.5% | 0.899 |
+| **PatchLTD** | **54.8%** | **0.924** | **53.9%** | **0.941** |
+
+**This is the strongest evidence for inherent robustness**: Without any JPEG aug, accuracy collapses for ALL methods (~50%), but PatchLTD retains AP=0.924 while CLIP+LoRA drops to 0.532. The features are inherently robust — only the decision boundary needs recalibration via augmentation.
+
+#### Table 9: Comparison with DCPT (multi-gen, single run)
 | Method | Clean | Q=30 | Wukong Q=30 |
 |--------|:---:|:---:|:---:|
 | CLIP+LoRA | 97.9±0.3 | 83.1±3.6 | 78.7±3.3 |

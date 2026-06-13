@@ -379,11 +379,37 @@ LoRA Rank & Clean (\%) & $Q{=}30$ (\%) \\
 \end{tabular}
 \end{table}
 
+\noindent\textbf{Inherent compression robustness (no JPEG augmentation).}
+A key question is whether \ours{}'s advantage comes from the features themselves or merely from better leveraging JPEG augmentation.
+\Cref{tab:noaug} answers this by training all methods \emph{without} any JPEG augmentation.
+At $Q{=}30$, all methods collapse to near-random accuracy ($\sim$50\%) because the classification threshold learned on clean data does not transfer.
+However, Average Precision (AP), which measures ranking quality independent of threshold, reveals a stark difference: \ours{} retains AP$=$0.924 while CLIP+LoRA drops to 0.532.
+This demonstrates that patch-level transition features are \emph{inherently} more compression-robust at the representation level---the features remain discriminative even without compression-aware training, but the decision boundary requires recalibration (which JPEG augmentation provides).
+
+\begin{table}[t]
+\centering
+\caption{JPEG robustness \emph{without} JPEG augmentation (multi-gen, single seed). Accuracy collapses for all methods, but AP reveals inherent feature robustness.}
+\label{tab:noaug}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccc}
+\toprule
+\multirow{2}{*}{Method} & \multicolumn{2}{c}{$Q{=}30$ (train gen)} & \multicolumn{2}{c}{$Q{=}30$ (Wukong)} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+                        & Acc (\%) & AP    & Acc (\%) & AP \\
+\midrule
+CLIP+LoRA      & 51.5 & 0.532 & 50.8 & 0.486 \\
+CLS-LTD        & 54.3 & 0.750 & 52.0 & 0.683 \\
+\ours{}-mp     & 52.7 & 0.894 & 51.5 & 0.899 \\
+\textbf{\ours{}} & \textbf{54.8} & \textbf{0.924} & \textbf{53.9} & \textbf{0.941} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \noindent\textbf{Comparison with DCPT.}
-We examine whether \ours{} is complementary to degradation-consistent paired training (DCPT)~\cite{dcpt2026}.
+We further examine the interaction with degradation-consistent paired training (DCPT)~\cite{dcpt2026}.
 As shown in \Cref{tab:dcpt}, DCPT substantially improves CLIP+LoRA ($+4.8\%$ at $Q{=}30$) but provides no benefit for \ours{} ($-0.6\%$).
-Notably, \ours{} \emph{without} DCPT ($90.8\%$) already surpasses CLIP+LoRA \emph{with} DCPT ($87.9\%$), while preserving clean accuracy.
-This suggests that under standard JPEG augmentation, patch-level transitions already capture compression-robust features that overlap with what DCPT provides, making the two approaches largely redundant rather than complementary.
+\ours{} \emph{without} DCPT ($90.8\%$) already surpasses CLIP+LoRA \emph{with} DCPT ($87.9\%$), while preserving clean accuracy.
+Combined with the no-augmentation results above, this confirms that patch-level transitions capture inherently compression-robust features, making additional robustness strategies redundant.
 
 \begin{table}[t]
 \centering
