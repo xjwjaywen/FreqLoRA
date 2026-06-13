@@ -120,6 +120,7 @@ def main():
     selected_layers = None
     if args.selected_layers:
         selected_layers = [int(x) for x in args.selected_layers.split(",")]
+    use_jpeg_aug = not args.no_jpeg_aug
 
     # Set seed (full determinism)
     import random
@@ -156,7 +157,6 @@ def main():
         )
 
     # --- Dataset ---
-    use_jpeg_aug = not args.no_jpeg_aug
     if consistency_enabled:
         train_transform = get_paired_degradation_transforms(image_size, degradations=degradations)
     else:
