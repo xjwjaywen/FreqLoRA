@@ -104,7 +104,7 @@ TAP~\cite{tap2026}            & \checkmark   &            &            &        
 Gragnaniello \etal~\cite{fakeorjpeg2024} reveal that many detection datasets contain format bias where detectors learn JPEG artifacts rather than generation artifacts.
 DCPT~\cite{dcpt2026} addresses this through degradation-consistent paired training, enforcing prediction consistency between clean and degraded views.
 Standard JPEG augmentation during training is now common practice.
-Our approach differs fundamentally: rather than training strategies for robustness, \ours{} provides \emph{inherently} robust features through architectural design.
+Our approach is orthogonal: rather than modifying the training strategy, \ours{} extracts spatially-resolved transition features that prove more robust under compression, even when all methods use the same JPEG augmentation.
 
 
 %==============================================================================
@@ -206,6 +206,8 @@ We evaluate accuracy on clean images, under JPEG compression ($Q \in \{95, 75, 5
 CLIP ViT-B/16 (pretrained: \texttt{laion2b\_s34b\_b88k}), LoRA rank 8, batch size 32, 10 epochs, AdamW with $\text{lr}{=}10^{-4}$.
 Selected layers: $\{2, 5, 8, 11\}$ (0-indexed).
 Transition projection: $768 \to 128$.
+Images are normalized with ImageNet statistics ($\mu{=}[0.485, 0.456, 0.406]$, $\sigma{=}[0.229, 0.224, 0.225]$); all methods use identical preprocessing for fair comparison.
+Seeds are set for \texttt{torch}, \texttt{numpy}, \texttt{random}, and \texttt{cudnn} to ensure reproducibility.
 
 
 \subsection{Multi-Generator Results}
@@ -381,7 +383,7 @@ LoRA Rank & Clean (\%) & $Q{=}30$ (\%) \\
 We examine whether \ours{} is complementary to degradation-consistent paired training (DCPT)~\cite{dcpt2026}.
 As shown in \Cref{tab:dcpt}, DCPT substantially improves CLIP+LoRA ($+4.8\%$ at $Q{=}30$) but provides no benefit for \ours{} ($-0.6\%$).
 Notably, \ours{} \emph{without} DCPT ($90.8\%$) already surpasses CLIP+LoRA \emph{with} DCPT ($87.9\%$), while preserving clean accuracy.
-This indicates that patch-level transitions provide inherent compression robustness through architecture design, making augmentation-based strategies redundant.
+This suggests that under standard JPEG augmentation, patch-level transitions already capture compression-robust features that overlap with what DCPT provides, making the two approaches largely redundant rather than complementary.
 
 \begin{table}[t]
 \centering

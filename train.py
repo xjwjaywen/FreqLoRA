@@ -88,6 +88,8 @@ def main():
                         help="Comma-separated train degradations, e.g. jpeg,blur,downsample,webp")
     parser.add_argument("--extra_degradation_eval", action="store_true",
                         help="Evaluate blur/downsample/WebP robustness after training")
+    parser.add_argument("--no_jpeg_aug", action="store_true",
+                        help="Disable JPEG augmentation during training")
     parser.add_argument("--selected_layers", type=str, default=None,
                         help="Comma-separated 0-indexed layer indices, e.g. '2,5,8,11'")
     parser.add_argument("--lora_rank", type=int, default=None,
@@ -119,17 +121,23 @@ def main():
     if args.selected_layers:
         selected_layers = [int(x) for x in args.selected_layers.split(",")]
 
-    # Set seed
+    # Set seed (full determinism)
+    import random
     seed = args.seed if args.seed is not None else train_cfg["seed"]
+    random.seed(seed)
+    np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     suffix = f"{method_tag}_{train_gen}"
     if selected_layers:
         suffix += f"_L{''.join(str(l) for l in selected_layers)}"
     if lora_rank != model_cfg["lora_rank"]:
         suffix += f"_r{lora_rank}"
+    if not use_jpeg_aug:
+        suffix += "_noaug"
     output_dir = Path(config["output"]["output_dir"]) / suffix
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -148,11 +156,14 @@ def main():
         )
 
     # --- Dataset ---
+    use_jpeg_aug = not args.no_jpeg_aug
     if consistency_enabled:
         train_transform = get_paired_degradation_transforms(image_size, degradations=degradations)
     else:
-        train_transform = get_transforms(image_size, is_train=True, jpeg_aug=True)
+        train_transform = get_transforms(image_size, is_train=True, jpeg_aug=use_jpeg_aug)
     val_transform = get_transforms(image_size, is_train=False)
+    if not use_jpeg_aug:
+        print("JPEG augmentation DISABLED")
 
     if args.multi_gen:
         # Multi-generator training: combine multiple generators
@@ -171,6 +182,8 @@ def main():
             suffix += f"_L{''.join(str(l) for l in selected_layers)}"
         if lora_rank != model_cfg["lora_rank"]:
             suffix += f"_r{lora_rank}"
+        if not use_jpeg_aug:
+            suffix += "_noaug"
         output_dir = Path(config["output"]["output_dir"]) / suffix
         output_dir.mkdir(parents=True, exist_ok=True)
         print(f"Multi-gen training: {train_gen}, total {len(train_dataset)} images")
@@ -183,8 +196,14 @@ def main():
     if len(train_dataset) == 0:
         print("ERROR: No training data"); return
 
+    def _worker_init(worker_id):
+        np.random.seed(seed + worker_id)
+
+    g = torch.Generator()
+    g.manual_seed(seed)
     train_loader = DataLoader(train_dataset, batch_size=train_cfg["batch_size"],
-                               shuffle=True, num_workers=4, pin_memory=True)
+                               shuffle=True, num_workers=4, pin_memory=True,
+                               worker_init_fn=_worker_init, generator=g)
     val_loader = DataLoader(val_dataset, batch_size=train_cfg["batch_size"],
                              shuffle=False, num_workers=4, pin_memory=True)
 
