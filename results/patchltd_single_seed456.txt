@@ -1,31 +1,31 @@
 method: patchltd
 train_generator: sd14
-best_val_acc: 0.9830
+best_val_acc: 0.9768
 
 === Cross-Generator ===
-adm: acc=0.5035 ap=0.6066 auc=0.5976
-biggan: acc=0.4993 ap=0.5232 auc=0.5149
-glide: acc=0.5927 ap=0.8439 auc=0.7981
-sd14: acc=0.9998 ap=1.0000 auc=1.0000
-sd15: acc=0.9900 ap=0.9986 auc=0.9980
-sd21: acc=0.9820 ap=0.9993 auc=0.9993
-sdv5: acc=0.9985 ap=1.0000 auc=1.0000
-vqdm: acc=0.5320 ap=0.7226 auc=0.6684
-wukong: acc=0.9962 ap=0.9999 auc=0.9999
+adm: acc=0.4975 ap=0.4256 auc=0.3885
+biggan: acc=0.4935 ap=0.3953 auc=0.3531
+glide: acc=0.6352 ap=0.8562 auc=0.8558
+sd14: acc=0.9768 ap=0.9971 auc=0.9966
+sd15: acc=0.9480 ap=0.9917 auc=0.9927
+sd21: acc=0.9610 ap=0.9925 auc=0.9931
+sdv5: acc=0.9805 ap=0.9975 auc=0.9975
+vqdm: acc=0.5235 ap=0.5824 auc=0.5470
+wukong: acc=0.9295 ap=0.9877 auc=0.9861
 
 === JPEG Robustness (train gen) ===
-Q=95: acc=0.9988 ap=1.0000 auc=1.0000
-Q=75: acc=0.9695 ap=0.9999 auc=0.9999
-Q=50: acc=0.9343 ap=0.9995 auc=0.9994
-Q=30: acc=0.9115 ap=0.9992 auc=0.9991
+Q=95: acc=0.9715 ap=0.9963 auc=0.9958
+Q=75: acc=0.9377 ap=0.9905 auc=0.9892
+Q=50: acc=0.8838 ap=0.9816 auc=0.9790
+Q=30: acc=0.8300 ap=0.9695 auc=0.9661
 
 === JPEG Robustness (unseen generators) ===
-glide_Q=95: acc=0.5400 ap=0.7790 auc=0.7290
-glide_Q=50: acc=0.5105 ap=0.7365 auc=0.6870
-glide_Q=30: acc=0.5092 ap=0.7312 auc=0.6875
-vqdm_Q=95: acc=0.5100 ap=0.6807 auc=0.6484
-vqdm_Q=50: acc=0.5102 ap=0.7481 auc=0.7114
-vqdm_Q=30: acc=0.5062 ap=0.7550 auc=0.7236
-wukong_Q=95: acc=0.9958 ap=0.9999 auc=0.9999
-wukong_Q=50: acc=0.8762 ap=0.9984 auc=0.9984
-wukong_Q=30: acc=0.8588 ap=0.9980 auc=0.9980
+glide_Q=95: acc=0.5972 ap=0.7784 auc=0.7748
+glide_Q=50: acc=0.5142 ap=0.5727 auc=0.5642
+glide_Q=30: acc=0.5038 ap=0.5123 auc=0.5046
+vqdm_Q=95: acc=0.5245 ap=0.5872 auc=0.5640
+vqdm_Q=50: acc=0.5072 ap=0.5379 auc=0.5322
+vqdm_Q=30: acc=0.5035 ap=0.5113 auc=0.5129
+wukong_Q=95: acc=0.9295 ap=0.9878 auc=0.9865
+wukong_Q=50: acc=0.7925 ap=0.9601 auc=0.9553
+wukong_Q=30: acc=0.7348 ap=0.9407 auc=0.9348
