@@ -94,6 +94,10 @@ def main():
                         help="Comma-separated 0-indexed layer indices, e.g. '2,5,8,11'")
     parser.add_argument("--lora_rank", type=int, default=None,
                         help="Override LoRA rank")
+    parser.add_argument("--clip_model", type=str, default=None,
+                        help="Override CLIP model, e.g. ViT-L-14")
+    parser.add_argument("--clip_pretrained", type=str, default=None,
+                        help="Override CLIP pretrained, e.g. laion2b_s32b_b82k")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -117,6 +121,8 @@ def main():
     )
     method_tag = f"{method}_dcpt" if consistency_enabled else method
     lora_rank = args.lora_rank if args.lora_rank is not None else model_cfg["lora_rank"]
+    clip_model = args.clip_model if args.clip_model else model_cfg["clip_model"]
+    clip_pretrained = args.clip_pretrained if args.clip_pretrained else model_cfg["clip_pretrained"]
     selected_layers = None
     if args.selected_layers:
         selected_layers = [int(x) for x in args.selected_layers.split(",")]
@@ -134,6 +140,8 @@ def main():
 
     def _build_suffix(tag, gen):
         s = f"{tag}_{gen}"
+        if clip_model != model_cfg["clip_model"]:
+            s += f"_{clip_model.replace('/', '-')}"
         if selected_layers:
             s += f"_L{''.join(str(l) for l in selected_layers)}"
         if lora_rank != model_cfg["lora_rank"]:
@@ -212,24 +220,22 @@ def main():
         lora_target_modules=model_cfg["lora_target_modules"],
     )
     if method == "clip_linear":
-        model = CLIPLinearProbe(model_cfg["clip_model"], model_cfg["clip_pretrained"])
+        model = CLIPLinearProbe(clip_model, clip_pretrained)
     elif method == "single_lora":
-        model = SingleViewLoRA(
-            model_cfg["clip_model"], model_cfg["clip_pretrained"], **lora_kwargs,
-        )
+        model = SingleViewLoRA(clip_model, clip_pretrained, **lora_kwargs)
     elif method == "patchltd_meanpool":
         model = PatchLTDDetector(
-            model_cfg["clip_model"], model_cfg["clip_pretrained"], **lora_kwargs,
+            clip_model, clip_pretrained, **lora_kwargs,
             patch_mode="meanpool", selected_layers=selected_layers,
         )
     elif method == "cls_ltd":
         model = PatchLTDDetector(
-            model_cfg["clip_model"], model_cfg["clip_pretrained"], **lora_kwargs,
+            clip_model, clip_pretrained, **lora_kwargs,
             patch_mode="cls_only", selected_layers=selected_layers,
         )
     else:  # patchltd or patchltd_dcpt
         model = PatchLTDDetector(
-            model_cfg["clip_model"], model_cfg["clip_pretrained"], **lora_kwargs,
+            clip_model, clip_pretrained, **lora_kwargs,
             patch_mode="transformer", selected_layers=selected_layers,
         )
 
