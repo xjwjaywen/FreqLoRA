@@ -1,35 +1,35 @@
 method: single_lora_dcpt
 train_generator: sd14+biggan+adm
-best_val_acc: 0.9605
+best_val_acc: 0.9655
 degradation_consistency: true
 lambda_feat: 0.1
 lambda_pred: 0.5
 degradations: jpeg,blur,downsample
 
 === Cross-Generator ===
-adm: acc=0.9775 ap=0.9997 auc=0.9997
-biggan: acc=0.9760 ap=0.9988 auc=0.9987
-glide: acc=0.8025 ap=0.8961 auc=0.8751
-sd14: acc=0.9605 ap=0.9943 auc=0.9932
-sd15: acc=0.8810 ap=0.9821 auc=0.9828
-sd21: acc=0.9170 ap=0.9880 auc=0.9883
-sdv5: acc=0.9645 ap=0.9945 auc=0.9936
-vqdm: acc=0.7017 ap=0.8038 auc=0.7549
-wukong: acc=0.9555 ap=0.9913 auc=0.9893
+adm: acc=0.9808 ap=0.9994 auc=0.9993
+biggan: acc=0.9778 ap=0.9989 auc=0.9988
+glide: acc=0.8310 ap=0.9168 auc=0.9006
+sd14: acc=0.9655 ap=0.9938 auc=0.9928
+sd15: acc=0.8970 ap=0.9810 auc=0.9804
+sd21: acc=0.9270 ap=0.9886 auc=0.9881
+sdv5: acc=0.9700 ap=0.9947 auc=0.9936
+vqdm: acc=0.6985 ap=0.8078 auc=0.7642
+wukong: acc=0.9620 ap=0.9923 auc=0.9908
 
 === JPEG Robustness (train gen) ===
-Q=95: acc=0.9605 ap=0.9939 auc=0.9928
-Q=75: acc=0.9403 ap=0.9853 auc=0.9820
-Q=50: acc=0.9103 ap=0.9733 auc=0.9672
-Q=30: acc=0.8788 ap=0.9612 auc=0.9519
+Q=95: acc=0.9613 ap=0.9928 auc=0.9915
+Q=75: acc=0.9525 ap=0.9864 auc=0.9837
+Q=50: acc=0.9340 ap=0.9801 auc=0.9753
+Q=30: acc=0.9265 ap=0.9761 auc=0.9704
 
 === JPEG Robustness (unseen generators) ===
-glide_Q=95: acc=0.7430 ap=0.8427 auc=0.8134
-glide_Q=50: acc=0.7390 ap=0.8769 auc=0.8495
-glide_Q=30: acc=0.7200 ap=0.8577 auc=0.8267
-vqdm_Q=95: acc=0.6827 ap=0.7865 auc=0.7423
-vqdm_Q=50: acc=0.5840 ap=0.6981 auc=0.6533
-vqdm_Q=30: acc=0.5635 ap=0.6394 auc=0.5957
-wukong_Q=95: acc=0.9543 ap=0.9912 auc=0.9891
-wukong_Q=50: acc=0.9028 ap=0.9734 auc=0.9663
-wukong_Q=30: acc=0.8750 ap=0.9644 auc=0.9560
+glide_Q=95: acc=0.7518 ap=0.8608 auc=0.8365
+glide_Q=50: acc=0.7425 ap=0.8689 auc=0.8402
+glide_Q=30: acc=0.7555 ap=0.8773 auc=0.8521
+vqdm_Q=95: acc=0.6577 ap=0.7586 auc=0.7138
+vqdm_Q=50: acc=0.5795 ap=0.6732 auc=0.6284
+vqdm_Q=30: acc=0.5727 ap=0.6606 auc=0.6171
+wukong_Q=95: acc=0.9585 ap=0.9918 auc=0.9903
+wukong_Q=50: acc=0.9183 ap=0.9783 auc=0.9725
+wukong_Q=30: acc=0.9105 ap=0.9769 auc=0.9716

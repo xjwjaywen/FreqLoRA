@@ -1,0 +1,35 @@
+method: single_lora_dcpt
+train_generator: sd14+biggan+adm
+best_val_acc: 0.9712
+degradation_consistency: true
+lambda_feat: 0.1
+lambda_pred: 0.5
+degradations: jpeg,blur,downsample
+
+=== Cross-Generator ===
+adm: acc=0.9860 ap=0.9993 auc=0.9994
+biggan: acc=0.9858 ap=0.9995 auc=0.9994
+glide: acc=0.7778 ap=0.8902 auc=0.8599
+sd14: acc=0.9712 ap=0.9954 auc=0.9947
+sd15: acc=0.8950 ap=0.9817 auc=0.9806
+sd21: acc=0.9460 ap=0.9915 auc=0.9915
+sdv5: acc=0.9735 ap=0.9944 auc=0.9932
+vqdm: acc=0.6665 ap=0.7913 auc=0.7406
+wukong: acc=0.9553 ap=0.9905 auc=0.9885
+
+=== JPEG Robustness (train gen) ===
+Q=95: acc=0.9643 ap=0.9935 auc=0.9923
+Q=75: acc=0.9183 ap=0.9820 auc=0.9778
+Q=50: acc=0.8818 ap=0.9709 auc=0.9634
+Q=30: acc=0.8662 ap=0.9644 auc=0.9559
+
+=== JPEG Robustness (unseen generators) ===
+glide_Q=95: acc=0.6893 ap=0.8243 auc=0.7851
+glide_Q=50: acc=0.7083 ap=0.8631 auc=0.8294
+glide_Q=30: acc=0.7222 ap=0.8721 auc=0.8395
+vqdm_Q=95: acc=0.6065 ap=0.7278 auc=0.6795
+vqdm_Q=50: acc=0.5777 ap=0.7073 auc=0.6547
+vqdm_Q=30: acc=0.5723 ap=0.6772 auc=0.6244
+wukong_Q=95: acc=0.9493 ap=0.9897 auc=0.9877
+wukong_Q=50: acc=0.8640 ap=0.9652 auc=0.9564
+wukong_Q=30: acc=0.8538 ap=0.9614 auc=0.9523
