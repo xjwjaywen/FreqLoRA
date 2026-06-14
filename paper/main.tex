@@ -31,7 +31,7 @@ Recent CLIP-based AI-generated image detectors leverage layer transition discrep
 However, existing methods analyze only the global CLS token, discarding spatially-resolved information encoded in patch tokens.
 We propose \ours{}, which extends layer transition analysis to the patch level: for each spatial position in the ViT grid, we compute per-patch feature transitions across selected intermediate layers and aggregate them via a lightweight Transformer encoder.
 This yields a spatially-aware forensic feature that complements the semantic CLS embedding.
-Experiments on GenImage with three random seeds show that \ours{} provides consistent improvement under JPEG compression in the multi-generator training setting ($+4.6\%$ accuracy at $Q{=}30$ over CLIP+LoRA, $89.4{\pm}2.6\%$ \vs{} $84.8{\pm}3.9\%$), with notably lower variance across seeds.
+Experiments on GenImage with five random seeds show that \ours{} provides consistent improvement under JPEG compression in the multi-generator training setting ($+4.6\%$ accuracy at $Q{=}30$ over CLIP+LoRA, $89.4{\pm}2.6\%$ \vs{} $84.8{\pm}3.9\%$), with notably lower variance across seeds.
 Ablation confirms that patch-level transitions outperform CLS-only transitions by $+5.6\%$ at $Q{=}30$, validating the value of spatially-resolved layer analysis.
 
 \keywords{AI-generated image detection \and CLIP \and layer transition \and JPEG robustness \and LoRA}
@@ -269,7 +269,9 @@ CLS-LTD        & \textbf{98.7}\scriptsize$\pm$0.1 & \textbf{93.7}\scriptsize$\pm
 \end{table}
 
 \Cref{tab:jpeg} presents the key result: JPEG compression robustness.
-\ours{} achieves $89.4{\pm}2.6\%$ at $Q{=}30$, outperforming CLIP+LoRA by $+4.6\%$ ($84.8{\pm}3.9\%$) and CLS-LTD by $+5.6\%$ ($83.8{\pm}4.1\%$), with lower variance.
+\ours{} achieves $89.4{\pm}2.6\%$ at $Q{=}30$, outperforming CLIP+LoRA by $+4.6\%$ ($84.8{\pm}3.9\%$) with lower variance.
+A paired $t$-test yields $p{=}0.088$ ($n{=}5$), indicating a consistent trend though not reaching $p{<}0.05$ significance.
+The improvement is statistically significant on unseen generators (\Cref{tab:unseen_jpeg}): Wukong $Q{=}30$ yields $p{=}0.009$.
 
 \begin{table}[t]
 \centering
@@ -314,7 +316,7 @@ CLS-LTD        & \textbf{96.4}\scriptsize$\pm$1.4 & 82.5\scriptsize$\pm$8.1 & \t
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.85\linewidth]{../visualizations/jpeg_robustness_curve.png}
-    \caption{JPEG robustness curves under multi-generator training (mean$\pm$std over 3 seeds). \ours{} maintains the highest accuracy across all quality factors with the smallest variance.}
+    \caption{JPEG robustness curves under multi-generator training (mean$\pm$std, $n{=}5$). \ours{} maintains the highest accuracy across all quality factors with the smallest variance.}
     \label{fig:jpeg_curve}
 \end{figure}
 
@@ -375,6 +377,8 @@ Patch-level        & mean          & 88.0\scriptsize$\pm$3.3 & +3.2   \\
 \Cref{tab:layer_selection} compares five layer configurations with 3 seeds each.
 Late layers ($\{5,7,9,11\}$) achieve the best $Q{=}30$ accuracy ($90.6{\pm}2.9\%$), while including early layers (\eg, layer 0) degrades performance to $86.5{\pm}3.3\%$.
 This is consistent with prior findings~\cite{koutlis2024rine,mold2025} that forensic signals in CLIP concentrate in the later stages.
+Note that our main experiments use the evenly-spaced default $\{2,5,8,11\}$, which was chosen \emph{before} running this ablation to avoid data-driven layer selection bias.
+The ablation results suggest that late-layer configurations may yield further improvements, which we leave for future work.
 
 \begin{table}[t]
 \centering
@@ -447,16 +451,16 @@ Combined with the no-augmentation results above, this confirms that patch-level 
 
 \begin{table}[t]
 \centering
-\caption{Comparison with DCPT (multi-gen). Rows without $\pm$ are single-seed results (seed=456); rows with $\pm$ repeat the 3-seed means from \Cref{tab:jpeg} for reference.}
+\caption{Comparison with DCPT (multi-gen). Rows with $\pm$: $n{=}5$ from \Cref{tab:jpeg}. DCPT rows: single seed (seed=456).}
 \label{tab:dcpt}
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{lccc}
 \toprule
 Method & Clean (\%) & $Q{=}30$ (\%) & Wukong $Q{=}30$ (\%) \\
 \midrule
-CLIP+LoRA             & 97.9\scriptsize$\pm$0.4 & 83.1\scriptsize$\pm$4.4 & 78.7\scriptsize$\pm$4.1 \\
+CLIP+LoRA             & 98.0\scriptsize$\pm$0.3 & 84.8\scriptsize$\pm$3.9 & 79.7\scriptsize$\pm$3.3 \\
 CLIP+LoRA + DCPT      & 96.1 & 87.9 & 87.5 \\
-\ours{}               & 97.5\scriptsize$\pm$0.2 & \textbf{90.8}\scriptsize$\pm$2.0 & \textbf{89.6}\scriptsize$\pm$2.1 \\
+\ours{}               & 97.5\scriptsize$\pm$0.2 & \textbf{89.4}\scriptsize$\pm$2.6 & \textbf{88.1}\scriptsize$\pm$2.9 \\
 \ours{} + DCPT        & 96.6 & 90.2 & 88.8 \\
 \bottomrule
 \end{tabular}
@@ -484,10 +488,10 @@ These localized differences provide interpretability: one can identify \emph{whe
 \end{figure}
 
 \noindent\textbf{Why multi-generator training amplifies \ours{}'s advantage.}
-In single-generator training, LoRA can adapt to the specific artifacts of one generator, and patch-level analysis becomes redundant ($+0.9\%$ \vs{} CLIP+LoRA).
+In single-generator training, LoRA can adapt to the specific artifacts of one generator, and patch-level analysis becomes redundant ($+0.6\%$ \vs{} CLIP+LoRA, not significant).
 Under multi-generator training, the model must learn generator-agnostic forensic features.
-Patch-level transitions capture structural inconsistencies that generalize across different generation processes, explaining the significant $+7.7\%$ improvement in this setting.
-The lower variance (std$=$1.7 \vs{} 3.6) further suggests that patch transitions provide a more stable optimization landscape.
+Patch-level transitions capture structural inconsistencies that generalize across different generation processes, explaining the $+4.6\%$ improvement in this setting.
+The lower variance (std$=$2.6 \vs{} 3.9) further suggests that patch transitions provide a more stable optimization landscape.
 
 
 %==============================================================================

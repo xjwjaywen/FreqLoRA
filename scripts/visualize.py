@@ -152,7 +152,7 @@ def viz_tsne_fused(model, dataset, output_dir, num_per_class=250, device="cuda")
 
 
 def viz_jpeg_robustness_curve(results_dir, output_dir):
-    """Figure 3: Accuracy vs JPEG quality factor curve (multi-gen, 3 seeds)."""
+    """Figure 3: Accuracy vs JPEG quality factor curve (multi-gen, 5 seeds)."""
     import re
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -182,7 +182,7 @@ def viz_jpeg_robustness_curve(results_dir, output_dir):
 
     for label, prefix in methods.items():
         seed_data = {q: [] for q in qualities}
-        for seed in [42, 123, 456]:
+        for seed in [42, 123, 456, 789, 1024]:
             fpath = results_dir / f"{prefix}_multi_seed{seed}.txt"
             if not fpath.exists():
                 continue
