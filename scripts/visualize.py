@@ -182,7 +182,7 @@ def viz_jpeg_robustness_curve(results_dir, output_dir):
 
     for label, prefix in methods.items():
         seed_data = {q: [] for q in qualities}
-        for seed in [42, 123, 456, 789, 1024]:
+        for seed in [42, 123, 456, 789, 1024, 2024, 3000, 4000, 5000, 6000]:
             fpath = results_dir / f"{prefix}_multi_seed{seed}.txt"
             if not fpath.exists():
                 continue
