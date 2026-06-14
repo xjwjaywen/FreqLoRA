@@ -132,13 +132,18 @@ def main():
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    suffix = f"{method_tag}_{train_gen}"
-    if selected_layers:
-        suffix += f"_L{''.join(str(l) for l in selected_layers)}"
-    if lora_rank != model_cfg["lora_rank"]:
-        suffix += f"_r{lora_rank}"
-    if not use_jpeg_aug:
-        suffix += "_noaug"
+    def _build_suffix(tag, gen):
+        s = f"{tag}_{gen}"
+        if selected_layers:
+            s += f"_L{''.join(str(l) for l in selected_layers)}"
+        if lora_rank != model_cfg["lora_rank"]:
+            s += f"_r{lora_rank}"
+        if not use_jpeg_aug:
+            s += "_noaug"
+        s += f"_s{seed}"
+        return s
+
+    suffix = _build_suffix(method_tag, train_gen)
     output_dir = Path(config["output"]["output_dir"]) / suffix
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -177,13 +182,7 @@ def main():
                 train_datasets.append(ds)
         train_dataset = ConcatDataset(train_datasets)
         train_gen = "+".join(train_gens)
-        suffix = f"{method_tag}_{train_gen}"
-        if selected_layers:
-            suffix += f"_L{''.join(str(l) for l in selected_layers)}"
-        if lora_rank != model_cfg["lora_rank"]:
-            suffix += f"_r{lora_rank}"
-        if not use_jpeg_aug:
-            suffix += "_noaug"
+        suffix = _build_suffix(method_tag, train_gen)
         output_dir = Path(config["output"]["output_dir"]) / suffix
         output_dir.mkdir(parents=True, exist_ok=True)
         print(f"Multi-gen training: {train_gen}, total {len(train_dataset)} images")
