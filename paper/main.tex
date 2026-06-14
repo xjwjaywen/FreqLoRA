@@ -31,8 +31,8 @@ Recent CLIP-based AI-generated image detectors leverage layer transition discrep
 However, existing methods analyze only the global CLS token, discarding spatially-resolved information encoded in patch tokens.
 We propose \ours{}, which extends layer transition analysis to the patch level: for each spatial position in the ViT grid, we compute per-patch feature transitions across selected intermediate layers and aggregate them via a lightweight Transformer encoder.
 This yields a spatially-aware forensic feature that complements the semantic CLS embedding.
-Experiments on GenImage with three random seeds show that \ours{} provides consistent improvement under JPEG compression in the multi-generator training setting ($+7.7\%$ accuracy at $Q{=}30$ over CLIP+LoRA, $90.8{\pm}2.0\%$ \vs{} $83.1{\pm}4.4\%$), with notably lower variance across seeds.
-Ablation confirms that patch-level transitions outperform CLS-only transitions by $+7.4\%$ at $Q{=}30$, validating the value of spatially-resolved layer analysis.
+Experiments on GenImage with three random seeds show that \ours{} provides consistent improvement under JPEG compression in the multi-generator training setting ($+4.6\%$ accuracy at $Q{=}30$ over CLIP+LoRA, $89.4{\pm}2.6\%$ \vs{} $84.8{\pm}3.9\%$), with notably lower variance across seeds.
+Ablation confirms that patch-level transitions outperform CLS-only transitions by $+5.6\%$ at $Q{=}30$, validating the value of spatially-resolved layer analysis.
 
 \keywords{AI-generated image detection \and CLIP \and layer transition \and JPEG robustness \and LoRA}
 \end{abstract}
@@ -60,7 +60,7 @@ Our approach adds only 198K trainable parameters (18\% overhead) and 0.6\,ms inf
 Our contributions are as follows:
 \begin{enumerate}
     \item We extend layer transition discrepancy from CLS-only to patch-level, providing spatially-resolved forensic analysis of CLIP-ViT intermediate representations.
-    \item We demonstrate through systematic multi-seed evaluation that patch-level transitions significantly improve compression robustness under multi-generator training ($+7.7\%$ over CLIP+LoRA, $+7.4\%$ over CLS-only LTD at $Q{=}30$), with lower training variance.
+    \item We demonstrate through systematic evaluation with 5 random seeds that patch-level transitions improve compression robustness under multi-generator training ($+4.6\%$ over CLIP+LoRA, $+5.6\%$ over CLS-only LTD at $Q{=}30$), with lower variance.
     \item We provide ablation studies on layer selection, aggregation strategy, and LoRA rank, along with interpretable patch transition heatmaps that visualize where real and fake images differ in their layer-wise evolution.
 \end{enumerate}
 
@@ -200,7 +200,7 @@ We compare against three baselines under identical training conditions (same bac
 (3)~\ours{}-meanpool: patch-level transitions with mean pooling instead of Transformer aggregation.
 
 \noindent\textbf{Evaluation.}
-All experiments are repeated with 3 random seeds (42, 123, 456) and reported as mean$\pm$std.
+All experiments are repeated with 5 random seeds (42, 123, 456, 789, 1024) and reported as mean$\pm$std (sample standard deviation).
 We evaluate accuracy on clean images, under JPEG compression ($Q \in \{95, 75, 50, 30\}$), and on unseen generators with JPEG compression.
 
 \noindent\textbf{Implementation.}
@@ -253,57 +253,57 @@ All methods achieve strong performance on same-family generators (SD1.5, SD2.1),
 
 \begin{table}[t]
 \centering
-\caption{Cross-generator accuracy (\%) under multi-generator training (SD1.4+BigGAN+ADM). Mean$\pm$std (sample std, $n{=}3$).}
+\caption{Cross-generator accuracy (\%) under multi-generator training (SD1.4+BigGAN+ADM). Mean$\pm$std ($n{=}5$).}
 \label{tab:cross_gen}
 \setlength{\tabcolsep}{3.5pt}
 \begin{tabular}{lcccccc}
 \toprule
 Method & SD1.4 & SD1.5 & SD2.1 & GLIDE & Wukong & VQDM \\
 \midrule
-CLIP+LoRA      & 97.9\scriptsize$\pm$0.4 & 93.7\scriptsize$\pm$0.5 & 95.9\scriptsize$\pm$0.3 & 97.1\scriptsize$\pm$1.5 & 96.4\scriptsize$\pm$0.7 & 67.8\scriptsize$\pm$5.0 \\
-CLS-LTD        & \textbf{98.7}\scriptsize$\pm$0.1 & \textbf{94.0}\scriptsize$\pm$0.8 & 95.3\scriptsize$\pm$0.8 & \textbf{98.0}\scriptsize$\pm$0.1 & \textbf{97.1}\scriptsize$\pm$0.2 & 68.2\scriptsize$\pm$3.1 \\
-\ours{}-mp     & 97.9\scriptsize$\pm$0.2 & 92.8\scriptsize$\pm$1.4 & 94.9\scriptsize$\pm$1.3 & 97.9\scriptsize$\pm$1.3 & 96.0\scriptsize$\pm$0.4 & \textbf{73.2}\scriptsize$\pm$1.8 \\
-\textbf{\ours{}} & 97.5\scriptsize$\pm$0.2 & 93.2\scriptsize$\pm$0.8 & \textbf{96.0}\scriptsize$\pm$0.6 & 97.0\scriptsize$\pm$0.3 & 95.8\scriptsize$\pm$0.8 & 72.5\scriptsize$\pm$3.1 \\
+CLIP+LoRA      & 98.0\scriptsize$\pm$0.3 & 93.7\scriptsize$\pm$0.8 & 95.6\scriptsize$\pm$0.6 & 97.2\scriptsize$\pm$1.2 & 96.4\scriptsize$\pm$0.6 & 68.0\scriptsize$\pm$3.8 \\
+CLS-LTD        & \textbf{98.7}\scriptsize$\pm$0.1 & \textbf{93.7}\scriptsize$\pm$0.9 & 95.4\scriptsize$\pm$0.9 & \textbf{98.1}\scriptsize$\pm$0.5 & \textbf{96.9}\scriptsize$\pm$0.4 & 68.7\scriptsize$\pm$3.1 \\
+\ours{}-mp     & 97.8\scriptsize$\pm$0.2 & 92.0\scriptsize$\pm$2.1 & 94.7\scriptsize$\pm$1.4 & 97.7\scriptsize$\pm$1.1 & 96.0\scriptsize$\pm$0.3 & \textbf{71.8}\scriptsize$\pm$2.4 \\
+\textbf{\ours{}} & 97.5\scriptsize$\pm$0.2 & 92.4\scriptsize$\pm$1.3 & \textbf{95.4}\scriptsize$\pm$1.0 & 96.7\scriptsize$\pm$0.7 & 95.5\scriptsize$\pm$0.7 & 71.2\scriptsize$\pm$3.0 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \Cref{tab:jpeg} presents the key result: JPEG compression robustness.
-\ours{} achieves $90.8{\pm}2.0\%$ at $Q{=}30$, outperforming CLIP+LoRA by $+7.7\%$ ($83.1{\pm}4.4\%$) and CLS-LTD by $+7.4\%$ ($83.4{\pm}3.9\%$), with notably lower variance.
+\ours{} achieves $89.4{\pm}2.6\%$ at $Q{=}30$, outperforming CLIP+LoRA by $+4.6\%$ ($84.8{\pm}3.9\%$) and CLS-LTD by $+5.6\%$ ($83.8{\pm}4.1\%$), with lower variance.
 
 \begin{table}[t]
 \centering
-\caption{JPEG robustness (\%) under multi-generator training. Evaluated on the training generator (SD1.4) at various JPEG quality factors. Mean$\pm$std (sample std, $n{=}3$).}
+\caption{JPEG robustness (\%) under multi-generator training. Evaluated on the training generator (SD1.4) at various JPEG quality factors. Mean$\pm$std ($n{=}5$).}
 \label{tab:jpeg}
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lccccc}
 \toprule
 Method & Clean & $Q{=}95$ & $Q{=}75$ & $Q{=}50$ & $Q{=}30$ \\
 \midrule
-CLIP+LoRA      & 97.9\scriptsize$\pm$0.4 & 97.7\scriptsize$\pm$0.2 & 95.5\scriptsize$\pm$1.3 & 90.1\scriptsize$\pm$2.7 & 83.1\scriptsize$\pm$4.4 \\
-CLS-LTD        & \textbf{98.7}\scriptsize$\pm$0.1 & \textbf{98.3}\scriptsize$\pm$0.2 & 94.4\scriptsize$\pm$0.7 & 88.0\scriptsize$\pm$2.3 & 83.4\scriptsize$\pm$3.9 \\
-\ours{}-mp     & 97.9\scriptsize$\pm$0.2 & 97.6\scriptsize$\pm$0.3 & \textbf{96.7}\scriptsize$\pm$0.7 & 92.3\scriptsize$\pm$2.6 & 88.2\scriptsize$\pm$4.7 \\
-\textbf{\ours{}} & 97.5\scriptsize$\pm$0.2 & 97.3\scriptsize$\pm$0.5 & 95.9\scriptsize$\pm$1.1 & \textbf{93.7}\scriptsize$\pm$1.3 & \textbf{90.8}\scriptsize$\pm$2.0 \\
+CLIP+LoRA      & 98.0\scriptsize$\pm$0.3 & 97.9\scriptsize$\pm$0.3 & 95.8\scriptsize$\pm$1.1 & 91.1\scriptsize$\pm$2.4 & 84.8\scriptsize$\pm$3.9 \\
+CLS-LTD        & \textbf{98.7}\scriptsize$\pm$0.1 & \textbf{98.3}\scriptsize$\pm$0.2 & 94.4\scriptsize$\pm$1.4 & 88.2\scriptsize$\pm$2.7 & 83.8\scriptsize$\pm$4.1 \\
+\ours{}-mp     & 97.8\scriptsize$\pm$0.2 & 97.5\scriptsize$\pm$0.4 & \textbf{96.1}\scriptsize$\pm$1.0 & 92.1\scriptsize$\pm$1.9 & 88.0\scriptsize$\pm$3.3 \\
+\textbf{\ours{}} & 97.5\scriptsize$\pm$0.2 & 97.1\scriptsize$\pm$0.5 & 95.4\scriptsize$\pm$1.0 & \textbf{92.7}\scriptsize$\pm$1.7 & \textbf{89.4}\scriptsize$\pm$2.6 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \Cref{tab:unseen_jpeg} evaluates the hardest setting: unseen generators under JPEG compression.
-\ours{} outperforms CLIP+LoRA by $+10.9\%$ on Wukong at $Q{=}30$ ($89.6$ \vs{} $78.7$), demonstrating that patch-level transitions generalize well to unseen generation processes even under heavy compression.
+\ours{} outperforms CLIP+LoRA by $+8.4\%$ on Wukong at $Q{=}30$ ($88.1$ \vs{} $79.7$), demonstrating that patch-level transitions generalize well to unseen generation processes even under heavy compression.
 
 \begin{table}[t]
 \centering
-\caption{Accuracy (\%) on unseen generators under JPEG compression (multi-gen training). Mean$\pm$std (sample std, $n{=}3$).}
+\caption{Accuracy (\%) on unseen generators under JPEG compression (multi-gen training). Mean$\pm$std ($n{=}5$).}
 \label{tab:unseen_jpeg}
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lcccc}
 \toprule
 Method & GLIDE $Q{=}95$ & GLIDE $Q{=}30$ & Wukong $Q{=}95$ & Wukong $Q{=}30$ \\
 \midrule
-CLIP+LoRA      & 95.8\scriptsize$\pm$2.0 & 79.9\scriptsize$\pm$9.0 & 96.8\scriptsize$\pm$0.8 & 78.7\scriptsize$\pm$4.1 \\
-CLS-LTD        & 95.9\scriptsize$\pm$1.3 & 82.5\scriptsize$\pm$4.0 & \textbf{97.1}\scriptsize$\pm$0.3 & 77.6\scriptsize$\pm$4.6 \\
-\ours{}-mp     & \textbf{97.8}\scriptsize$\pm$0.8 & \textbf{87.4}\scriptsize$\pm$3.2 & 95.9\scriptsize$\pm$1.0 & 84.8\scriptsize$\pm$6.6 \\
-\textbf{\ours{}} & 96.4\scriptsize$\pm$0.6 & 85.4\scriptsize$\pm$2.0 & 96.0\scriptsize$\pm$0.5 & \textbf{89.6}\scriptsize$\pm$2.1 \\
+CLIP+LoRA      & 95.7\scriptsize$\pm$1.5 & 82.0\scriptsize$\pm$7.0 & 96.9\scriptsize$\pm$0.6 & 79.7\scriptsize$\pm$3.3 \\
+CLS-LTD        & \textbf{96.4}\scriptsize$\pm$1.4 & 82.5\scriptsize$\pm$8.1 & \textbf{96.9}\scriptsize$\pm$0.5 & 77.9\scriptsize$\pm$5.0 \\
+\ours{}-mp     & 97.1\scriptsize$\pm$1.3 & \textbf{85.9}\scriptsize$\pm$3.1 & 95.9\scriptsize$\pm$0.8 & 85.6\scriptsize$\pm$4.8 \\
+\textbf{\ours{}} & 96.0\scriptsize$\pm$0.8 & 85.4\scriptsize$\pm$1.8 & 95.7\scriptsize$\pm$0.6 & \textbf{88.1}\scriptsize$\pm$2.9 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -323,23 +323,23 @@ CLS-LTD        & 95.9\scriptsize$\pm$1.3 & 82.5\scriptsize$\pm$4.0 & \textbf{97.
 \label{sec:single_gen}
 
 \Cref{tab:jpeg_single} shows results when training on SD1.4 only.
-\ours{} achieves $86.2{\pm}3.3\%$ \vs{} $88.1{\pm}1.9\%$ for CLIP+LoRA at $Q{=}30$---the difference is not statistically significant, and CLIP+LoRA is nominally higher.
-This contrasts with the multi-generator setting where \ours{} leads by $+7.7\%$.
+\ours{} achieves $88.1{\pm}3.6\%$ \vs{} $87.5{\pm}3.3\%$ for CLIP+LoRA at $Q{=}30$---the difference is not statistically significant.
+This contrasts with the multi-generator setting where \ours{} leads by $+4.6\%$.
 The advantage of patch-level transitions emerges specifically when the model must generalize across diverse generation processes, suggesting that spatial transition patterns encode generator-agnostic forensic information that is redundant when training on a single generator.
 
 \begin{table}[t]
 \centering
-\caption{JPEG robustness (\%) under single-generator training (SD1.4 only). Mean$\pm$std (sample std, $n{=}3$).}
+\caption{JPEG robustness (\%) under single-generator training (SD1.4 only). Mean$\pm$std ($n{=}5$).}
 \label{tab:jpeg_single}
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lccccc}
 \toprule
 Method & Clean & $Q{=}95$ & $Q{=}75$ & $Q{=}50$ & $Q{=}30$ \\
 \midrule
-CLIP+LoRA      & \textbf{98.4}\scriptsize$\pm$0.2 & \textbf{98.0}\scriptsize$\pm$0.2 & \textbf{95.1}\scriptsize$\pm$1.3 & \textbf{91.1}\scriptsize$\pm$1.2 & \textbf{88.1}\scriptsize$\pm$1.9 \\
-CLS-LTD        & 98.9\scriptsize$\pm$0.0 & 98.2\scriptsize$\pm$0.2 & 92.2\scriptsize$\pm$2.0 & 83.8\scriptsize$\pm$3.7 & 81.3\scriptsize$\pm$2.0 \\
-\ours{}-mp     & 98.0\scriptsize$\pm$0.5 & 97.8\scriptsize$\pm$0.3 & 94.5\scriptsize$\pm$0.9 & 89.8\scriptsize$\pm$1.5 & 86.2\scriptsize$\pm$1.9 \\
-\ours{}        & 97.9\scriptsize$\pm$0.2 & 97.4\scriptsize$\pm$0.2 & 94.7\scriptsize$\pm$0.9 & 90.0\scriptsize$\pm$1.9 & 86.2\scriptsize$\pm$3.3 \\
+CLIP+LoRA      & \textbf{98.4}\scriptsize$\pm$0.4 & \textbf{98.0}\scriptsize$\pm$0.4 & 94.7\scriptsize$\pm$1.1 & 90.2\scriptsize$\pm$2.4 & 87.5\scriptsize$\pm$3.3 \\
+CLS-LTD        & 98.8\scriptsize$\pm$0.1 & 98.2\scriptsize$\pm$0.2 & 91.8\scriptsize$\pm$1.8 & 83.6\scriptsize$\pm$2.9 & 81.0\scriptsize$\pm$1.8 \\
+\ours{}-mp     & 98.2\scriptsize$\pm$0.5 & 98.0\scriptsize$\pm$0.3 & \textbf{95.3}\scriptsize$\pm$1.3 & 91.0\scriptsize$\pm$2.0 & 87.1\scriptsize$\pm$1.9 \\
+\ours{}        & 98.0\scriptsize$\pm$0.4 & 97.6\scriptsize$\pm$0.4 & 95.1\scriptsize$\pm$0.9 & \textbf{91.1}\scriptsize$\pm$2.1 & \textbf{88.1}\scriptsize$\pm$3.6 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -350,65 +350,65 @@ CLS-LTD        & 98.9\scriptsize$\pm$0.0 & 98.2\scriptsize$\pm$0.2 & 92.2\script
 
 \noindent\textbf{Component ablation.}
 \Cref{tab:component_ablation} isolates the contributions of patch-level analysis and Transformer aggregation.
-CLS-only transitions provide minimal benefit ($+0.3\%$) because the CLS token compresses all spatial information into one vector.
-Patch-level transitions with mean pooling achieve $+5.1\%$, showing that spatial information is inherently valuable.
-The Transformer aggregator adds a further $+2.6\%$ by selectively attending to the most informative patches, while also reducing variance from $4.7$ to $2.0$.
+CLS-only transitions provide minimal benefit ($-1.0\%$) because the CLS token compresses all spatial information into one vector.
+Patch-level transitions with mean pooling achieve $+3.2\%$, showing that spatial information is valuable.
+The Transformer aggregator adds a further $+1.4\%$ by selectively attending to the most informative patches, while also reducing variance from $3.3$ to $2.6$.
 
 \begin{table}[t]
 \centering
-\caption{Component ablation (multi-gen, $Q{=}30$, sample std, $n{=}3$).}
+\caption{Component ablation (multi-gen, $Q{=}30$, $n{=}5$).}
 \label{tab:component_ablation}
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{llcc}
 \toprule
 Transition Level & Aggregation & $Q{=}30$ Acc (\%) & $\Delta$ \\
 \midrule
-None (CLIP+LoRA)   & --            & 83.1\scriptsize$\pm$4.4 & --     \\
-CLS-only           & mean          & 83.4\scriptsize$\pm$3.9 & +0.3   \\
-Patch-level        & mean          & 88.2\scriptsize$\pm$4.7 & +5.1   \\
-\textbf{Patch-level} & \textbf{Transformer} & \textbf{90.8}\scriptsize$\pm$\textbf{2.0} & \textbf{+7.7} \\
+None (CLIP+LoRA)   & --            & 84.8\scriptsize$\pm$3.9 & --     \\
+CLS-only           & mean          & 83.8\scriptsize$\pm$4.1 & $-$1.0   \\
+Patch-level        & mean          & 88.0\scriptsize$\pm$3.3 & +3.2   \\
+\textbf{Patch-level} & \textbf{Transformer} & \textbf{89.4}\scriptsize$\pm$\textbf{2.6} & \textbf{+4.6} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \noindent\textbf{Layer selection.}
-\Cref{tab:layer_selection} compares five layer configurations.
-Mid-to-late layers ($\{3,6,9,11\}$) achieve the best $Q{=}30$ accuracy (92.8\%), while including early layers (\eg, layer 0) degrades performance to 83.8\%.
-This is consistent with prior findings~\cite{koutlis2024rine,mold2025} that forensic signals in CLIP concentrate in the middle-to-late stages, where representations transition from low-level texture to high-level semantics.
+\Cref{tab:layer_selection} compares five layer configurations with 3 seeds each.
+Late layers ($\{5,7,9,11\}$) achieve the best $Q{=}30$ accuracy ($90.6{\pm}2.9\%$), while including early layers (\eg, layer 0) degrades performance to $86.5{\pm}3.3\%$.
+This is consistent with prior findings~\cite{koutlis2024rine,mold2025} that forensic signals in CLIP concentrate in the later stages.
 
 \begin{table}[t]
 \centering
-\caption{Layer selection ablation (multi-gen, single seed).}
+\caption{Layer selection ablation (multi-gen, $n{=}3$).}
 \label{tab:layer_selection}
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{lccc}
 \toprule
 Selected Layers (0-indexed) & Description & Clean (\%) & $Q{=}30$ (\%) \\
 \midrule
-0, 3, 7, 11                & Wide spread & 97.5 & 83.8 \\
-1, 4, 7, 10                & Early-mid   & 96.9 & 90.3 \\
-2, 5, 8, 11                & Default     & 97.2 & 89.6 \\
-\textbf{3, 6, 9, 11}       & \textbf{Mid-late} & \textbf{97.2} & \textbf{92.8} \\
-5, 7, 9, 11                & Late only   & 97.0 & 90.3 \\
+0, 3, 7, 11                & Wide spread & 97.8\scriptsize$\pm$0.3 & 86.5\scriptsize$\pm$3.3 \\
+1, 4, 7, 10                & Early-mid   & 96.6\scriptsize$\pm$0.7 & 89.3\scriptsize$\pm$2.3 \\
+2, 5, 8, 11                & Default     & 97.2\scriptsize$\pm$0.0 & 87.9\scriptsize$\pm$1.5 \\
+3, 6, 9, 11                & Mid-late    & 97.1\scriptsize$\pm$0.4 & 86.4\scriptsize$\pm$6.4 \\
+\textbf{5, 7, 9, 11}       & \textbf{Late} & 97.0\scriptsize$\pm$0.2 & \textbf{90.6}\scriptsize$\pm$2.9 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \noindent\textbf{LoRA rank sensitivity.}
-\Cref{tab:lora_rank} shows that clean accuracy is stable across LoRA ranks ($<$0.5\% variation), confirming that \ours{}'s effectiveness is not dependent on a specific LoRA configuration.
+\Cref{tab:lora_rank} shows that clean accuracy is stable across LoRA ranks ($<$0.6\% variation), confirming that \ours{}'s effectiveness is not dependent on a specific LoRA configuration.
 
 \begin{table}[t]
 \centering
-\caption{LoRA rank sensitivity (multi-gen, single seed).}
+\caption{LoRA rank sensitivity (multi-gen, $n{=}3$ for rank 4/16, $n{=}5$ for rank 8).}
 \label{tab:lora_rank}
-\setlength{\tabcolsep}{8pt}
+\setlength{\tabcolsep}{6pt}
 \begin{tabular}{ccc}
 \toprule
 LoRA Rank & Clean (\%) & $Q{=}30$ (\%) \\
 \midrule
-4          & 97.2 & 87.4 \\
-8 (default)& 97.4 & 85.8 \\
-16         & 97.6 & 83.8 \\
+4          & 96.9\scriptsize$\pm$0.7 & 86.7\scriptsize$\pm$0.7 \\
+8 (default)& 97.5\scriptsize$\pm$0.2 & \textbf{89.4}\scriptsize$\pm$2.6 \\
+16         & 97.4\scriptsize$\pm$0.3 & 84.9\scriptsize$\pm$1.4 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -495,7 +495,7 @@ The lower variance (std$=$1.7 \vs{} 3.6) further suggests that patch transitions
 \label{sec:conclusion}
 
 We proposed \ours{}, which extends layer transition discrepancy from the global CLS token to spatially-resolved patch tokens.
-Through systematic multi-seed evaluation on GenImage, we demonstrated that patch-level transitions significantly improve compression robustness under multi-generator training ($+7.7\%$ at JPEG $Q{=}30$) with lower training variance.
+Through systematic multi-seed evaluation on GenImage, we demonstrated that patch-level transitions improve compression robustness under multi-generator training ($+4.6\%$ at JPEG $Q{=}30$, $n{=}5$) with lower variance.
 Ablation on layer selection reveals that mid-to-late layers provide the strongest forensic signal, and comparison with DCPT shows that \ours{} provides inherent compression robustness without sacrificing clean accuracy.
 
 \noindent\textbf{Limitations.}
