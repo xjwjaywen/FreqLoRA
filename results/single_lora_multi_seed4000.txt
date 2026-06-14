@@ -1,0 +1,31 @@
+method: single_lora
+train_generator: sd14+biggan+adm
+best_val_acc: 0.9782
+
+=== Cross-Generator ===
+adm: acc=0.9908 ap=0.9998 auc=0.9998
+biggan: acc=0.9870 ap=1.0000 auc=1.0000
+glide: acc=0.9593 ap=0.9889 auc=0.9864
+sd14: acc=0.9782 ap=0.9957 auc=0.9967
+sd15: acc=0.9480 ap=0.9905 auc=0.9912
+sd21: acc=0.9580 ap=0.9905 auc=0.9914
+sdv5: acc=0.9850 ap=0.9981 auc=0.9975
+vqdm: acc=0.6607 ap=0.7508 auc=0.6825
+wukong: acc=0.9625 ap=0.9901 auc=0.9881
+
+=== JPEG Robustness (train gen) ===
+Q=95: acc=0.9755 ap=0.9957 auc=0.9951
+Q=75: acc=0.9270 ap=0.9822 auc=0.9784
+Q=50: acc=0.8337 ap=0.9535 auc=0.9434
+Q=30: acc=0.7585 ap=0.9151 auc=0.8985
+
+=== JPEG Robustness (unseen generators) ===
+glide_Q=95: acc=0.9547 ap=0.9874 auc=0.9845
+glide_Q=50: acc=0.8472 ap=0.9598 auc=0.9498
+glide_Q=30: acc=0.7715 ap=0.9236 auc=0.9067
+vqdm_Q=95: acc=0.6360 ap=0.7740 auc=0.7400
+vqdm_Q=50: acc=0.5600 ap=0.6785 auc=0.6493
+vqdm_Q=30: acc=0.5400 ap=0.6115 auc=0.5878
+wukong_Q=95: acc=0.9615 ap=0.9910 auc=0.9890
+wukong_Q=50: acc=0.7568 ap=0.9216 auc=0.9044
+wukong_Q=30: acc=0.6937 ap=0.8781 auc=0.8574
