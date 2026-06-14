@@ -200,7 +200,7 @@ def viz_jpeg_robustness_curve(results_dir, output_dir):
         for q in qualities:
             if seed_data[q]:
                 means.append(np.mean(seed_data[q]) * 100)
-                stds.append(np.std(seed_data[q]) * 100)
+                stds.append(np.std(seed_data[q], ddof=1) * 100)
                 qs.append(q)
 
         if means:

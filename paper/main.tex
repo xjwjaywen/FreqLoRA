@@ -31,8 +31,8 @@ Recent CLIP-based AI-generated image detectors leverage layer transition discrep
 However, existing methods analyze only the global CLS token, discarding spatially-resolved information encoded in patch tokens.
 We propose \ours{}, which extends layer transition analysis to the patch level: for each spatial position in the ViT grid, we compute per-patch feature transitions across selected intermediate layers and aggregate them via a lightweight Transformer encoder.
 This yields a spatially-aware forensic feature that complements the semantic CLS embedding.
-Experiments on GenImage with five random seeds show that \ours{} provides consistent improvement under JPEG compression in the multi-generator training setting ($+4.6\%$ accuracy at $Q{=}30$ over CLIP+LoRA, $89.4{\pm}2.6\%$ \vs{} $84.8{\pm}3.9\%$), with notably lower variance across seeds.
-Ablation confirms that patch-level transitions outperform CLS-only transitions by $+5.6\%$ at $Q{=}30$, validating the value of spatially-resolved layer analysis.
+Experiments on GenImage with five random seeds show that \ours{} improves JPEG compression robustness in the multi-generator training setting ($89.4{\pm}2.6\%$ \vs{} $84.8{\pm}3.9\%$ at $Q{=}30$), with significantly lower variance and a statistically significant advantage on unseen generators ($p{=}0.010$).
+Ablation confirms that patch-level transitions outperform CLS-only transitions, and a no-augmentation experiment demonstrates inherent feature-level robustness (AP$=$0.924 \vs{} 0.532 without JPEG training augmentation).
 
 \keywords{AI-generated image detection \and CLIP \and layer transition \and JPEG robustness \and LoRA}
 \end{abstract}
@@ -311,7 +311,7 @@ CLS-LTD        & \textbf{96.4}\scriptsize$\pm$1.4 & 82.5\scriptsize$\pm$8.1 & \t
 \end{table}
 
 \Cref{fig:jpeg_curve} visualizes the accuracy degradation curve across JPEG quality factors.
-\ours{} (red) consistently outperforms all baselines, with the gap widening at lower quality factors and error bars remaining tight.
+\ours{} (red) achieves the highest accuracy at low quality factors with the smallest error bars, indicating both better robustness and lower variance.
 
 \begin{figure}[t]
     \centering
@@ -499,12 +499,16 @@ The lower variance (std$=$2.6 \vs{} 3.9) further suggests that patch transitions
 \label{sec:conclusion}
 
 We proposed \ours{}, which extends layer transition discrepancy from the global CLS token to spatially-resolved patch tokens.
-Through systematic multi-seed evaluation on GenImage, we demonstrated that patch-level transitions improve compression robustness under multi-generator training ($+4.6\%$ at JPEG $Q{=}30$, $n{=}5$) with lower variance.
-Ablation on layer selection reveals that mid-to-late layers provide the strongest forensic signal, and comparison with DCPT shows that \ours{} provides inherent compression robustness without sacrificing clean accuracy.
+Through evaluation with 5 random seeds on GenImage, we showed two main benefits of patch-level transitions under multi-generator training:
+(1)~a statistically significant improvement on unseen compressed generators ($+8.4\%$ on Wukong at $Q{=}30$, $p{=}0.010$), and
+(2)~substantially lower variance across seeds (std$=$2.6 \vs{} 3.9), providing a more reliable performance floor for deployment.
+The mean improvement on the training generator ($+4.6\%$ at $Q{=}30$, $p{=}0.088$) shows a consistent trend but does not reach $p{<}0.05$ significance.
+A no-augmentation experiment further demonstrates that \ours{}'s features are inherently compression-robust at the representation level (AP$=$0.924 \vs{} 0.532), independent of JPEG training augmentation.
 
 \noindent\textbf{Limitations.}
-In single-generator training, \ours{}'s advantage over CLIP+LoRA is not statistically significant, suggesting the method is most beneficial for multi-source deployment scenarios.
-Future work includes investigating learnable layer selection strategies as in LTD~\cite{yang2026ltd}, and scaling to larger ViT backbones.
+In single-generator training, \ours{} does not improve over CLIP+LoRA, suggesting the method is most beneficial for multi-source deployment scenarios.
+The improvement on the training generator under JPEG compression, while consistent in direction, does not reach statistical significance at $\alpha{=}0.05$ with $n{=}5$.
+Future work includes investigating learnable layer selection strategies as in LTD~\cite{yang2026ltd}, increasing the number of evaluation seeds, and scaling to larger ViT backbones.
 
 
 %==============================================================================
