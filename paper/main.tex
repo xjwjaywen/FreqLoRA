@@ -46,7 +46,7 @@ Reliable detection of such images is critical for combating misinformation, prot
 
 CLIP-based detectors~\cite{ojha2023universalfakedetector,koutlis2024rine} have emerged as strong baselines, achieving $>$98\% accuracy on clean images by leveraging the rich visual representations of pre-trained Vision Transformers (ViTs).
 However, real-world deployment presents a fundamental challenge: images shared on social media and messaging platforms undergo lossy compression (primarily JPEG), which degrades detection accuracy substantially.
-For instance, a CLIP+LoRA detector trained on clean images drops from 97.9\% to 83.1\% under JPEG quality factor $Q{=}30$ in multi-generator evaluation.
+For instance, a CLIP+LoRA detector trained on clean images drops from 98.0\% to 84.8\% under JPEG quality factor $Q{=}30$ in multi-generator evaluation.
 
 Recent work on Layer Transition Discrepancy (LTD)~\cite{yang2026ltd} has shown that the difference between representations at adjacent intermediate layers of CLIP carries forensic information.
 However, LTD analyzes only the global CLS token---a single vector per layer per image---discarding the spatially-resolved information encoded in the 196 patch tokens of a ViT-B/16.
@@ -271,7 +271,7 @@ CLS-LTD        & \textbf{98.7}\scriptsize$\pm$0.1 & \textbf{93.7}\scriptsize$\pm
 \Cref{tab:jpeg} presents the key result: JPEG compression robustness.
 \ours{} achieves $89.4{\pm}2.6\%$ at $Q{=}30$, outperforming CLIP+LoRA by $+4.6\%$ ($84.8{\pm}3.9\%$) with lower variance.
 A paired $t$-test yields $p{=}0.088$ ($n{=}5$), indicating a consistent trend though not reaching $p{<}0.05$ significance.
-The improvement is statistically significant on unseen generators (\Cref{tab:unseen_jpeg}): Wukong $Q{=}30$ yields $p{=}0.009$.
+The improvement is statistically significant on unseen generators (\Cref{tab:unseen_jpeg}): Wukong $Q{=}30$ yields $p{=}0.010$.
 
 \begin{table}[t]
 \centering
