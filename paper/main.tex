@@ -32,7 +32,7 @@ However, existing methods analyze only the global CLS token, discarding spatiall
 We propose \ours{}, which extends layer transition analysis to the patch level: for each spatial position in the ViT grid, we compute per-patch feature transitions across selected intermediate layers and aggregate them via a lightweight Transformer encoder.
 This yields a spatially-aware forensic feature that complements the semantic CLS embedding.
 Experiments on GenImage with ten random seeds show that \ours{} significantly improves JPEG compression robustness in the multi-generator training setting ($88.6{\pm}2.4\%$ \vs{} $82.9{\pm}3.9\%$ at $Q{=}30$; paired $t$-test $p{=}0.001$, $n{=}10$), with lower variance and a particularly strong advantage on unseen generators ($+9.1\%$ on Wukong $Q{=}30$, $p{<}0.001$).
-A no-augmentation experiment further demonstrates inherent feature-level robustness (AP$=$0.924 \vs{} 0.532 without JPEG training augmentation).
+A no-augmentation experiment demonstrates inherent feature-level robustness (AP$=$0.828 \vs{} 0.623 without JPEG training augmentation, $n{=}5$).
 
 \keywords{AI-generated image detection \and CLIP \and layer transition \and JPEG robustness \and LoRA}
 \end{abstract}
@@ -411,7 +411,7 @@ Selected Layers (0-indexed) & Description & Clean (\%) & $Q{=}30$ (\%) \\
 LoRA Rank & Clean (\%) & $Q{=}30$ (\%) \\
 \midrule
 4          & 96.9\scriptsize$\pm$0.7 & 86.7\scriptsize$\pm$0.7 \\
-8 (default)& 97.5\scriptsize$\pm$0.2 & \textbf{89.4}\scriptsize$\pm$2.6 \\
+8 (default)& 97.5\scriptsize$\pm$0.3 & \textbf{88.6}\scriptsize$\pm$2.4 \\
 16         & 97.4\scriptsize$\pm$0.3 & 84.9\scriptsize$\pm$1.4 \\
 \bottomrule
 \end{tabular}
@@ -421,12 +421,12 @@ LoRA Rank & Clean (\%) & $Q{=}30$ (\%) \\
 A key question is whether \ours{}'s advantage comes from the features themselves or merely from better leveraging JPEG augmentation.
 \Cref{tab:noaug} answers this by training all methods \emph{without} any JPEG augmentation.
 At $Q{=}30$, all methods collapse to near-random accuracy ($\sim$50\%) because the classification threshold learned on clean data does not transfer.
-However, Average Precision (AP), which measures ranking quality independent of threshold, reveals a stark difference: \ours{} retains AP$=$0.924 while CLIP+LoRA drops to 0.532.
+However, Average Precision (AP), which measures ranking quality independent of threshold, reveals a stark difference: \ours{} retains AP$=$0.828$\pm$0.065 while CLIP+LoRA drops to 0.623$\pm$0.061 ($n{=}5$).
 This demonstrates that patch-level transition features are \emph{inherently} more compression-robust at the representation level---the features remain discriminative even without compression-aware training, but the decision boundary requires recalibration (which JPEG augmentation provides).
 
 \begin{table}[t]
 \centering
-\caption{JPEG robustness \emph{without} JPEG augmentation (multi-gen, single seed). Accuracy collapses for all methods, but AP reveals inherent feature robustness.}
+\caption{JPEG robustness \emph{without} JPEG augmentation (multi-gen, $n{=}5$). Accuracy collapses for all methods, but AP reveals inherent feature robustness.}
 \label{tab:noaug}
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{lcccc}
@@ -435,10 +435,10 @@ This demonstrates that patch-level transition features are \emph{inherently} mor
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}
                         & Acc (\%) & AP    & Acc (\%) & AP \\
 \midrule
-CLIP+LoRA      & 51.5 & 0.532 & 50.8 & 0.486 \\
-CLS-LTD        & 54.3 & 0.750 & 52.0 & 0.683 \\
-\ours{}-mp     & 52.7 & 0.894 & 51.5 & 0.899 \\
-\textbf{\ours{}} & \textbf{54.8} & \textbf{0.924} & \textbf{53.9} & \textbf{0.941} \\
+CLIP+LoRA      & 53.4\scriptsize$\pm$2.1 & 0.623\scriptsize$\pm$.061 & 51.9\scriptsize$\pm$1.2 & 0.556\scriptsize$\pm$.048 \\
+CLS-LTD        & 55.4\scriptsize$\pm$2.0 & 0.810\scriptsize$\pm$.067 & 53.2\scriptsize$\pm$1.4 & 0.753\scriptsize$\pm$.080 \\
+\ours{}-mp     & 52.7\scriptsize$\pm$1.1 & 0.818\scriptsize$\pm$.053 & 51.5\scriptsize$\pm$0.8 & 0.811\scriptsize$\pm$.058 \\
+\textbf{\ours{}} & \textbf{53.8}\scriptsize$\pm$1.6 & \textbf{0.828}\scriptsize$\pm$.065 & \textbf{52.8}\scriptsize$\pm$1.7 & \textbf{0.837}\scriptsize$\pm$.066 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -476,8 +476,10 @@ Inference time on a single GPU is 5.4\,ms per image, compared to 4.8\,ms for CLI
 \subsection{Scalability to ViT-L/14}
 \label{sec:vitl}
 
-To verify that \ours{}'s advantage is not specific to the ViT-B/16 backbone, we evaluate on ViT-L/14 (\texttt{laion2b\_s32b\_b82k}) with layers $\{5,11,17,23\}$ (evenly spaced across 24 blocks).
-As shown in \Cref{tab:vitl}, both methods benefit from the larger backbone, and \ours{} maintains its advantage on VQDM ($78.8$ \vs{} $75.5$) while achieving comparable JPEG robustness.
+To test scalability, we evaluate on ViT-L/14 (\texttt{laion2b\_s32b\_b82k}) with layers $\{5,11,17,23\}$ (evenly spaced across 24 blocks).
+As shown in \Cref{tab:vitl}, the larger backbone dramatically improves the baseline's JPEG robustness ($82.9 \to 95.6$ at $Q{=}30$), and CLIP+LoRA outperforms \ours{} on 4 of 5 metrics.
+\ours{} retains an advantage on the challenging VQDM generator ($78.8$ \vs{} $75.5$), but the JPEG robustness gap disappears.
+This suggests that \ours{}'s contribution is most valuable for medium-scale backbones where the CLS token's representational capacity is a bottleneck; larger backbones encode sufficient spatial information in the CLS token alone.
 
 \begin{table}[t]
 \centering
@@ -521,14 +523,15 @@ The lower variance (std$=$2.4 \vs{} 3.9) further suggests that patch transitions
 \label{sec:conclusion}
 
 We proposed \ours{}, which extends layer transition discrepancy from the global CLS token to spatially-resolved patch tokens.
-Through evaluation with 5 random seeds on GenImage, we showed two main benefits of patch-level transitions under multi-generator training:
+Through evaluation with 10 random seeds on GenImage, we showed two main benefits of patch-level transitions under multi-generator training:
 (1)~a statistically significant improvement on the training generator ($+5.7\%$ at $Q{=}30$, $p{=}0.001$, $n{=}10$) and on unseen generators ($+9.1\%$ on Wukong at $Q{=}30$, $p{<}0.001$), and
 (2)~substantially lower variance across seeds (std$=$2.4 \vs{} 3.9), providing a more reliable performance floor for deployment.
-A no-augmentation experiment further demonstrates that \ours{}'s features are inherently compression-robust at the representation level (AP$=$0.924 \vs{} 0.532), independent of JPEG training augmentation.
+A no-augmentation experiment ($n{=}5$) further demonstrates that \ours{}'s features are inherently compression-robust at the representation level (AP$=$0.828 \vs{} 0.623), independent of JPEG training augmentation.
 
 \noindent\textbf{Limitations.}
-In single-generator training, \ours{} does not improve over CLIP+LoRA, suggesting the method is most beneficial for multi-source deployment scenarios.
-Future work includes investigating learnable layer selection strategies as in LTD~\cite{yang2026ltd} and evaluation on additional benchmarks and newer generators.
+In single-generator training, \ours{} does not improve over CLIP+LoRA.
+On ViT-L/14, the larger backbone's CLS token already captures sufficient spatial information, reducing \ours{}'s marginal benefit; the method is thus most valuable for medium-scale backbones in multi-source deployment.
+All experiments use GenImage; evaluation on additional benchmarks (ForenSynths, DiffusionForensics) and newer generators (SDXL, DALL-E~3, Flux) remains for future work.
 
 
 %==============================================================================
